@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, LogOut, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Lock, LogOut, X, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function AccountPanel({
   email,
@@ -19,6 +19,10 @@ export default function AccountPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // États pour afficher / masquer les mots de passe
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // États pour les labels flottants
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -43,6 +47,8 @@ export default function AccountPanel({
       setConfirmPassword('');
       setPasswordFocused(false);
       setConfirmFocused(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la mise à jour du mot de passe.');
     } finally {
@@ -82,7 +88,7 @@ export default function AccountPanel({
             </div>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 transition p-1 rounded-full hover:bg-slate-100"
+              className="text-slate-400 hover:text-slate-600 transition p-1 rounded-full hover:bg-slate-100 cursor-pointer"
               aria-label="Fermer"
             >
               <X className="w-5 h-5" />
@@ -99,16 +105,17 @@ export default function AccountPanel({
 
           {/* Formulaire de changement de mot de passe */}
           <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+            {/* Nouveau mot de passe */}
             <div className="relative">
               <input
-                type="password"
+                type={showNewPassword ? 'text' : 'password'}
                 id="new-password"
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 onFocus={() => setPasswordFocused(true)}
                 onBlur={() => setPasswordFocused(newPassword !== '')}
-                className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200"
+                className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
                 placeholder=" "
               />
               <label
@@ -121,19 +128,27 @@ export default function AccountPanel({
               >
                 Nouveau mot de passe
               </label>
-              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 peer-focus:text-blue-500 transition-colors" />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                aria-label={showNewPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              >
+                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
 
+            {/* Confirmer le mot de passe */}
             <div className="relative">
               <input
-                type="password"
+                type={showConfirmPassword ? 'text' : 'password'}
                 id="confirm-password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 onFocus={() => setConfirmFocused(true)}
                 onBlur={() => setConfirmFocused(confirmPassword !== '')}
-                className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200"
+                className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
                 placeholder=" "
               />
               <label
@@ -146,7 +161,14 @@ export default function AccountPanel({
               >
                 Confirmer le mot de passe
               </label>
-              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 peer-focus:text-blue-500 transition-colors" />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              >
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
 
             {/* Messages d'erreur/succès animés */}
@@ -178,7 +200,7 @@ export default function AccountPanel({
             <motion.button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -190,7 +212,7 @@ export default function AccountPanel({
           {/* Bouton de déconnexion */}
           <motion.button
             onClick={handleLogout}
-            className="mt-4 w-full py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition flex items-center justify-center gap-2 border border-red-200/50 hover:border-red-300"
+            className="mt-4 w-full py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition flex items-center justify-center gap-2 border border-red-200/50 hover:border-red-300 cursor-pointer"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

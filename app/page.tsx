@@ -35,8 +35,6 @@ import {
   User,
   Trash2,
   X,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 
 // --- Type pour les données d'un Nœud ---
@@ -570,7 +568,23 @@ export default function OrganigrammePage() {
 
   return (
     <div className="w-full h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 font-sans overflow-hidden">
-      <Toaster position="top-right" reverseOrder={false} />
+      {/* Notification Toast affichée sous le Navbar */}
+      <Toaster 
+        position="top-center" 
+        containerStyle={{
+          top: 75,
+        }}
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#f1f5f9',
+            color: '#1e293b',
+            borderRadius: '0.75rem',
+            fontSize: '0.875rem',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          },
+        }}
+      />
 
       {/* Barre d'outils modernisée */}
       <motion.div
@@ -631,7 +645,7 @@ export default function OrganigrammePage() {
             whileTap={{ scale: 0.95 }}
           >
             <FileDown className="w-4 h-4" />
-            PDF
+            Exporter au format PDF
           </motion.button>
 
           <motion.button
@@ -712,7 +726,7 @@ export default function OrganigrammePage() {
                 </h2>
                 <button
                   onClick={() => setProjectsModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 transition p-1 rounded-full hover:bg-slate-100"
+                  className="text-slate-400 hover:text-slate-600 transition p-1 rounded-full hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -721,7 +735,7 @@ export default function OrganigrammePage() {
               <div className="p-4">
                 <motion.button
                   onClick={createNewProject}
-                  className="w-full text-center px-4 py-3 text-sm font-medium text-white bg-emerald-600 rounded-xl hover:bg-emerald-500 transition shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  className="w-full text-center px-4 py-3 text-sm font-medium text-white bg-emerald-600 rounded-xl hover:bg-emerald-500 transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -757,7 +771,7 @@ export default function OrganigrammePage() {
                     <button
                       onClick={() => setDeleteTarget({ id: p.id, title: p.title })}
                       title="Supprimer ce projet"
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition flex-shrink-0"
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition flex-shrink-0 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -794,14 +808,14 @@ export default function OrganigrammePage() {
                 <button
                   onClick={() => setDeleteTarget(null)}
                   disabled={deleting}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-xl transition"
+                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   onClick={confirmDeleteProject}
                   disabled={deleting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-500 rounded-xl transition shadow-md disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-500 rounded-xl transition shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {deleting ? 'Suppression...' : 'Supprimer'}
                 </button>

@@ -83,245 +83,276 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden px-4">
-      {/* Image de fond avec overlay */}
+    <div className="min-h-screen w-full flex flex-col md:flex-row overflow-hidden">
+      {/* Colonne gauche : image + blobs (visible sur desktop, cachée sur mobile) */}
       <div
-        className="absolute inset-0 -z-20 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/hierarchie.jpg')" }}
-      />
-      {/* Overlay sombre pour la lisibilité */}
-      <div className="absolute inset-0 -z-10 bg-black/60" />
-
-      {/* Formes animées (blobs et géométries) au‑dessus de l'overlay */}
-      <motion.div
-        className="absolute inset-0 -z-5"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.5 }}
+        className="hidden md:flex md:w-2/3 relative bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/hierarchievf.jpg')" }}
       >
-        <div className="absolute top-1/4 -left-20 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/10 rounded-full blur-2xl animate-spin-slow" />
-        <motion.div
-          className="absolute top-10 left-10 w-16 h-16 border-2 border-blue-400/20 rounded-lg rotate-12"
-          animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute bottom-10 right-10 w-20 h-20 border-2 border-indigo-400/20 rounded-full"
-          animate={{ rotate: -360, scale: [1, 1.3, 1] }}
-          transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute top-1/3 right-1/4 w-12 h-12 border border-purple-400/20 rounded-lg"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute bottom-1/3 left-1/4 w-10 h-10 border-2 border-teal-400/20 rounded-full"
-          animate={{ scale: [1, 1.5, 1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      </motion.div>
+        {/* Overlay léger pour lisibilité éventuelle */}
+        <div className="absolute inset-0 bg-black/30" />
 
-      {/* Carte avec fond blanc semi‑transparent et texte sombre */}
-      <motion.div
-        variants={cardVariants}
-        initial="hidden"
-        animate="visible"
-        className="relative w-full max-w-md bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/30 hover:border-white/50 transition-all duration-300"
-        style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
-      >
-        {/* En‑tête */}
-        <div className="text-center mb-8">
+        {/* Formes animées (blobs) */}
+        <motion.div
+          className="absolute inset-0"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5 }}
+        >
+          <div className="absolute top-1/4 -left-20 w-80 h-80 bg-blue-500/30 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl animate-pulse delay-1000" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/20 rounded-full blur-2xl animate-spin-slow" />
           <motion.div
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 mb-4"
-            whileHover={{ scale: 1.1, rotate: 3 }}
-            transition={{ type: 'spring', stiffness: 400 }}
-          >
-            {mode === 'login' && <LogIn className="w-7 h-7" />}
-            {mode === 'signup' && <UserPlus className="w-7 h-7" />}
-            {mode === 'reset' && <KeyRound className="w-7 h-7" />}
-          </motion.div>
-
-          <motion.h1
-            className="text-2xl font-bold text-slate-800 tracking-tight"
-            key={mode}
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {mode === 'login' && 'Connectez-vous'}
-            {mode === 'signup' && 'Créer un compte'}
-            {mode === 'reset' && 'Réinitialisation'}
-          </motion.h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {mode === 'reset'
-              ? 'Saisissez votre email pour recevoir un lien de récupération'
-              : 'Gérez et structurez vos organigrammes en toute simplicité'}
-          </p>
-        </div>
-
-        {/* Formulaire */}
-        <AnimatePresence mode="wait">
+            className="absolute top-10 left-10 w-16 h-16 border-2 border-blue-400/30 rounded-lg rotate-12"
+            animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+            transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+          />
           <motion.div
-            key={mode}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-          >
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Champ Email */}
-              <div className="relative">
-                <input
-                  type="email"
-                  id="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(email !== '')}
-                  className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200"
-                  placeholder=" "
-                />
-                <label
-                  htmlFor="email"
-                  className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                    emailFocused || email
-                      ? 'top-1 text-xs text-blue-600'
-                      : 'top-3.5 text-sm text-slate-500'
-                  }`}
-                >
-                  Adresse e-mail
-                </label>
-                <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 peer-focus:text-blue-500 transition-colors" />
-              </div>
+            className="absolute bottom-10 right-10 w-20 h-20 border-2 border-indigo-400/30 rounded-full"
+            animate={{ rotate: -360, scale: [1, 1.3, 1] }}
+            transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+          />
+          <motion.div
+            className="absolute top-1/3 right-1/4 w-12 h-12 border border-purple-400/30 rounded-lg"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+          />
+          <motion.div
+            className="absolute bottom-1/3 left-1/4 w-10 h-10 border-2 border-teal-400/30 rounded-full"
+            animate={{ scale: [1, 1.5, 1] }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </motion.div>
+      </div>
 
-              {/* Champ Mot de passe avec œil */}
-              {mode !== 'reset' && (
+      {/* Colonne droite : formulaire (1/3 sur desktop, pleine largeur sur mobile) */}
+      <div className="flex-1 md:w-1/3 bg-white flex items-center justify-center p-4 md:p-8 min-h-screen">
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          className="w-full max-w-md bg-white/95 backdrop-blur-md md:bg-transparent md:backdrop-blur-none rounded-2xl p-6 md:p-0 shadow-2xl md:shadow-none"
+        >
+          {/* En‑tête */}
+          <div className="text-center mb-8">
+            <motion.div
+              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 mb-4"
+              whileHover={{ scale: 1.1, rotate: 3 }}
+              transition={{ type: 'spring', stiffness: 400 }}
+            >
+              {mode === 'login' && <LogIn className="w-7 h-7" />}
+              {mode === 'signup' && <UserPlus className="w-7 h-7" />}
+              {mode === 'reset' && <KeyRound className="w-7 h-7" />}
+            </motion.div>
+
+            <motion.h1
+              className="text-2xl font-bold text-slate-800 tracking-tight"
+              key={mode}
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {mode === 'login' && 'Connectez-vous'}
+              {mode === 'signup' && 'Créer un compte'}
+              {mode === 'reset' && 'Réinitialisation'}
+            </motion.h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {mode === 'reset'
+                ? 'Saisissez votre email pour recevoir un lien de récupération'
+                : 'Gérez et structurez vos organigrammes en toute simplicité'}
+            </p>
+          </div>
+
+          {/* Formulaire */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={mode}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+            >
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Champ Email */}
                 <div className="relative">
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    id="password"
+                    type="email"
+                    id="email"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(password !== '')}
-                    className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(email !== '')}
+                    className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200"
                     placeholder=" "
                   />
                   <label
-                    htmlFor="password"
+                    htmlFor="email"
                     className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      passwordFocused || password
+                      emailFocused || email
                         ? 'top-1 text-xs text-blue-600'
                         : 'top-3.5 text-sm text-slate-500'
                     }`}
                   >
-                    Mot de passe
+                    Adresse e-mail
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 peer-focus:text-blue-500 transition-colors" />
                 </div>
-              )}
 
-              {mode === 'login' && (
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => switchMode('reset')}
-                    className="text-xs font-medium text-blue-600 hover:underline transition cursor-pointer"
-                  >
-                    Mot de passe oublié ?
-                  </button>
-                </div>
-              )}
-
-              {/* Messages */}
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    variants={shakeVariants}
-                    animate="shake"
-                    className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2"
-                  >
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </motion.div>
+                {/* Champ Mot de passe avec œil */}
+                {mode !== 'reset' && (
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      id="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(password !== '')}
+                      className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
+                      placeholder=" "
+                    />
+                    <label
+                      htmlFor="password"
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        passwordFocused || password
+                          ? 'top-1 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-slate-500'
+                      }`}
+                    >
+                      Mot de passe
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 )}
-                {infoMsg && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-start gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>{infoMsg}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
-              {/* Bouton principal avec zoom amélioré */}
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-                className="relative w-full py-3 px-4 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl text-sm shadow-lg shadow-blue-500/30 hover:shadow-xl transition duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 group cursor-pointer"
-              >
-                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span>Patientez...</span>
-                  </>
-                ) : (
-                  <span>
-                    {mode === 'login' && 'Se connecter'}
-                    {mode === 'signup' && "S'inscrire"}
-                    {mode === 'reset' && 'Envoyer le lien'}
-                  </span>
+                {mode === 'login' && (
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => switchMode('reset')}
+                      className="text-xs font-medium text-blue-600 hover:underline transition cursor-pointer"
+                    >
+                      Mot de passe oublié ?
+                    </button>
+                  </div>
                 )}
-              </motion.button>
-            </form>
-          </motion.div>
-        </AnimatePresence>
 
-        {/* Pied de page */}
-        <div className="mt-8 pt-6 border-t border-slate-200 text-center">
-          {mode === 'reset' ? (
-            <button
-              onClick={() => switchMode('login')}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Retour à la connexion</span>
-            </button>
-          ) : (
-            <p className="text-xs text-slate-500">
-              {mode === 'login' ? 'Pas encore de compte ? ' : 'Déjà un compte ? '}
+                {/* Messages */}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      variants={shakeVariants}
+                      animate="shake"
+                      className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{error}</span>
+                    </motion.div>
+                  )}
+                  {infoMsg && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-start gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{infoMsg}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Bouton principal avec zoom amélioré */}
+                <motion.button
+                  type="submit"
+                  disabled={loading}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="relative w-full py-3 px-4 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl text-sm shadow-lg shadow-blue-500/30 hover:shadow-xl transition duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 group cursor-pointer"
+                >
+                  <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Patientez...</span>
+                    </>
+                  ) : (
+                    <span>
+                      {mode === 'login' && 'Se connecter'}
+                      {mode === 'signup' && "S'inscrire"}
+                      {mode === 'reset' && 'Envoyer le lien'}
+                    </span>
+                  )}
+                </motion.button>
+              </form>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Pied de page */}
+          <div className="mt-8 pt-6 border-t border-slate-200 text-center">
+            {mode === 'reset' ? (
               <button
-                onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-                className="font-semibold text-blue-600 hover:text-blue-700 transition underline underline-offset-2 cursor-pointer"
+                onClick={() => switchMode('login')}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition cursor-pointer"
               >
-                {mode === 'login' ? "S'inscrire" : 'Se connecter'}
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Retour à la connexion</span>
               </button>
-            </p>
-          )}
-        </div>
-      </motion.div>
+            ) : (
+              <p className="text-xs text-slate-500">
+                {mode === 'login' ? 'Pas encore de compte ? ' : 'Déjà un compte ? '}
+                <button
+                  onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+                  className="font-semibold text-blue-600 hover:text-blue-700 transition underline underline-offset-2 cursor-pointer"
+                >
+                  {mode === 'login' ? "S'inscrire" : 'Se connecter'}
+                </button>
+              </p>
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Mobile : on affiche l'image en fond avec le formulaire par‑dessus (comme avant) */}
+      {/* Pour que la version mobile reprenne l'ancien design, on ajoute un fond avec l'image et un overlay */}
+      <style jsx>{`
+        @media (max-width: 767px) {
+          .md\\:flex {
+            display: none !important;
+          }
+          .flex-1 {
+            background-image: url('/hierarchievf.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+          }
+          .flex-1::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 0;
+          }
+          .flex-1 > * {
+            position: relative;
+            z-index: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 }
