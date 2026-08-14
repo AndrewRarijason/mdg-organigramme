@@ -3,7 +3,9 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, LogOut, X, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, LogOut, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { PasswordField } from '@/app/components/auth/PasswordField';
+import { useChangePassword } from '@/app/hooks/useChangePassword';
 
 export default function AccountPanel({
   email,
@@ -16,43 +18,14 @@ export default function AccountPanel({
 }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const { loading, error, success, changePassword } = useChangePassword();
 
-  // États pour afficher / masquer les mots de passe
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // États pour les labels flottants
-  const [passwordFocused, setPasswordFocused] = useState(false);
-  const [confirmFocused, setConfirmFocused] = useState(false);
-
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(false);
-
-    if (newPassword !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      setSuccess(true);
+    const ok = await changePassword(newPassword, confirmPassword);
+    if (ok) {
       setNewPassword('');
       setConfirmPassword('');
-      setPasswordFocused(false);
-      setConfirmFocused(false);
-      setShowNewPassword(false);
-      setShowConfirmPassword(false);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la mise à jour du mot de passe.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -78,7 +51,6 @@ export default function AccountPanel({
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* En-tête */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30">
@@ -95,7 +67,6 @@ export default function AccountPanel({
             </button>
           </div>
 
-          {/* Email */}
           <div className="mb-5 p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2">
             <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
             <span className="text-sm text-slate-600 truncate">
@@ -103,75 +74,20 @@ export default function AccountPanel({
             </span>
           </div>
 
-          {/* Formulaire de changement de mot de passe */}
-          <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
-            {/* Nouveau mot de passe */}
-            <div className="relative">
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                id="new-password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(newPassword !== '')}
-                className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
-                placeholder=" "
-              />
-              <label
-                htmlFor="new-password"
-                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                  passwordFocused || newPassword
-                    ? 'top-1 text-xs text-blue-600'
-                    : 'top-3.5 text-sm text-slate-500'
-                }`}
-              >
-                Nouveau mot de passe
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                aria-label={showNewPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-              >
-                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <PasswordField
+              id="new-password"
+              label="Nouveau mot de passe"
+              value={newPassword}
+              onChange={setNewPassword}
+            />
+            <PasswordField
+              id="confirm-password"
+              label="Confirmer le mot de passe"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+            />
 
-            {/* Confirmer le mot de passe */}
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                id="confirm-password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                onFocus={() => setConfirmFocused(true)}
-                onBlur={() => setConfirmFocused(confirmPassword !== '')}
-                className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
-                placeholder=" "
-              />
-              <label
-                htmlFor="confirm-password"
-                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                  confirmFocused || confirmPassword
-                    ? 'top-1 text-xs text-blue-600'
-                    : 'top-3.5 text-sm text-slate-500'
-                }`}
-              >
-                Confirmer le mot de passe
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-              >
-                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {/* Messages d'erreur/succès animés */}
             <AnimatePresence>
               {error && (
                 <motion.div
@@ -209,7 +125,6 @@ export default function AccountPanel({
             </motion.button>
           </form>
 
-          {/* Bouton de déconnexion */}
           <motion.button
             onClick={handleLogout}
             className="mt-4 w-full py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition flex items-center justify-center gap-2 border border-red-200/50 hover:border-red-300 cursor-pointer"
