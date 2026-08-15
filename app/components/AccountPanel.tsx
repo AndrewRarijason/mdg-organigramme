@@ -56,7 +56,7 @@ export default function AccountPanel({
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30">
                 <User className="w-5 h-5" />
               </div>
-              <h2 className="text-xl font-bold text-slate-800">Mon compte</h2>
+              <h2 className="text-lg md:text-xl font-bold text-slate-800">Mon compte</h2>
             </div>
             <button
               onClick={onClose}
@@ -69,7 +69,7 @@ export default function AccountPanel({
 
           <div className="mb-5 p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2">
             <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
-            <span className="text-sm text-slate-600 truncate">
+            <span className="text-[12px] md:text-sm text-slate-600 truncate">
               Connecté en tant que <span className="font-semibold text-slate-800">{email}</span>
             </span>
           </div>
@@ -116,7 +116,7 @@ export default function AccountPanel({
             <motion.button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[13px] md:text-sm font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -127,7 +127,7 @@ export default function AccountPanel({
 
           <motion.button
             onClick={handleLogout}
-            className="mt-4 w-full py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition flex items-center justify-center gap-2 border border-red-200/50 hover:border-red-300 cursor-pointer"
+            className="mt-4 w-full py-3 text-[13px] md:text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition flex items-center justify-center gap-2 border border-red-200/50 hover:border-red-300 cursor-pointer"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

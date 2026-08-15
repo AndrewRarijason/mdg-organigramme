@@ -3,7 +3,14 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { Mail, Lock, ArrowLeft, LogIn, UserPlus, KeyRound, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Mail, ArrowLeft, LogIn, UserPlus, KeyRound, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+
+const ALLOWED_EMAIL_SUFFIX = 'madagascar-services.com';
+const DOMAIN_ERROR_MESSAGE = `Seule l'adresse email du domaine "${ALLOWED_EMAIL_SUFFIX}" est autorisée.`;
+
+function hasAllowedDomain(email: string) {
+  return email.trim().toLowerCase().endsWith(ALLOWED_EMAIL_SUFFIX);
+}
 
 export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
@@ -33,10 +40,18 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
         }
         onLoggedIn();
       } else if (mode === 'signup') {
+        if (!hasAllowedDomain(email)) {
+          throw new Error(DOMAIN_ERROR_MESSAGE);
+        }
+
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         setInfoMsg('Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse avant de te connecter.');
       } else {
+        if (!hasAllowedDomain(email)) {
+          throw new Error(DOMAIN_ERROR_MESSAGE);
+        }
+
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });
@@ -59,7 +74,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
     setShowPassword(false);
   };
 
-  // Variants
   const pageVariants: Variants = {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0, transition: { duration: 0.4, type: 'tween', ease: 'easeOut' } },
@@ -84,15 +98,12 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
 
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row overflow-hidden">
-      {/* Colonne gauche : image + blobs (visible sur desktop, cachée sur mobile) */}
       <div
         className="hidden md:flex md:w-2/3 relative bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/hierarchievf.jpg')" }}
       >
-        {/* Overlay léger pour lisibilité éventuelle */}
         <div className="absolute inset-0 bg-black/30" />
 
-        {/* Formes animées (blobs) */}
         <motion.div
           className="absolute inset-0"
           initial={{ opacity: 0 }}
@@ -125,7 +136,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
         </motion.div>
       </div>
 
-      {/* Colonne droite : formulaire (1/3 sur desktop, pleine largeur sur mobile) */}
       <div className="flex-1 md:w-1/3 bg-white flex items-center justify-center p-4 md:p-8 min-h-screen">
         <motion.div
           variants={cardVariants}
@@ -133,7 +143,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
           animate="visible"
           className="w-full max-w-md bg-white/95 backdrop-blur-md md:bg-transparent md:backdrop-blur-none rounded-2xl p-6 md:p-0 shadow-2xl md:shadow-none"
         >
-          {/* En‑tête */}
           <div className="text-center mb-8">
             <motion.div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 mb-4"
@@ -146,7 +155,7 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
             </motion.div>
 
             <motion.h1
-              className="text-2xl font-bold text-slate-800 tracking-tight"
+              className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight"
               key={mode}
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
@@ -156,24 +165,16 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
               {mode === 'signup' && 'Créer un compte'}
               {mode === 'reset' && 'Réinitialisation'}
             </motion.h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-[12px] md:text-sm text-slate-500 mt-1">
               {mode === 'reset'
                 ? 'Saisissez votre email pour recevoir un lien de récupération'
                 : 'Gérez et structurez vos organigrammes en toute simplicité'}
             </p>
           </div>
 
-          {/* Formulaire */}
           <AnimatePresence mode="wait">
-            <motion.div
-              key={mode}
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-            >
+            <motion.div key={mode} variants={pageVariants} initial="initial" animate="animate" exit="exit">
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Champ Email */}
                 <div className="relative">
                   <input
                     type="email"
@@ -183,15 +184,13 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={() => setEmailFocused(true)}
                     onBlur={() => setEmailFocused(email !== '')}
-                    className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200"
+                    className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-[14px] md:text-sm text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200"
                     placeholder=" "
                   />
                   <label
                     htmlFor="email"
                     className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      emailFocused || email
-                        ? 'top-1 text-xs text-blue-600'
-                        : 'top-3.5 text-sm text-slate-500'
+                      emailFocused || email ? 'top-1 text-xs text-blue-600' : 'top-3.5 text-sm text-slate-500'
                     }`}
                   >
                     Adresse e-mail
@@ -199,7 +198,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
                   <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 peer-focus:text-blue-500 transition-colors" />
                 </div>
 
-                {/* Champ Mot de passe avec œil */}
                 {mode !== 'reset' && (
                   <div className="relative">
                     <input
@@ -210,15 +208,13 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
                       onChange={(e) => setPassword(e.target.value)}
                       onFocus={() => setPasswordFocused(true)}
                       onBlur={() => setPasswordFocused(password !== '')}
-                      className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
+                      className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-[14px] md:text-sm text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
                       placeholder=" "
                     />
                     <label
                       htmlFor="password"
                       className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        passwordFocused || password
-                          ? 'top-1 text-xs text-blue-600'
-                          : 'top-3.5 text-sm text-slate-500'
+                        passwordFocused || password ? 'top-1 text-xs text-blue-600' : 'top-3.5 text-sm text-slate-500'
                       }`}
                     >
                       Mot de passe
@@ -246,7 +242,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
                   </div>
                 )}
 
-                {/* Messages */}
                 <AnimatePresence>
                   {error && (
                     <motion.div
@@ -271,7 +266,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
                   )}
                 </AnimatePresence>
 
-                {/* Bouton principal avec zoom amélioré */}
                 <motion.button
                   type="submit"
                   disabled={loading}
@@ -300,7 +294,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
             </motion.div>
           </AnimatePresence>
 
-          {/* Pied de page */}
           <div className="mt-8 pt-6 border-t border-slate-200 text-center">
             {mode === 'reset' ? (
               <button
@@ -325,8 +318,6 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
         </motion.div>
       </div>
 
-      {/* Mobile : on affiche l'image en fond avec le formulaire par‑dessus (comme avant) */}
-      {/* Pour que la version mobile reprenne l'ancien design, on ajoute un fond avec l'image et un overlay */}
       <style jsx>{`
         @media (max-width: 767px) {
           .md\\:flex {

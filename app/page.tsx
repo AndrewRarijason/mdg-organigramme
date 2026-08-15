@@ -16,6 +16,7 @@ import { ConfirmDeleteDialog } from '@/app/components/organigramme/ConfirmDelete
 import { useAuthSession } from '@/app/hooks/useAuthSession';
 import { useOrganigramme } from '@/app/hooks/useOrganigramme';
 import { useProjects } from '@/app/hooks/useProjects';
+import { useAutoSave } from '@/app/hooks/useAutoSave';
 
 import { useState } from 'react';
 
@@ -31,13 +32,33 @@ export default function OrganigrammePage() {
     () => organigramme.resetCanvas()
   );
 
-  // Lance l'initialisation dès que la session est connue
-  React.useEffect(() => {
-    if (session) projects.initProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  const { lastAutoSavedAt, autoSaving } = useAutoSave({
+    enabled: !!projects.projectId,
+    nodes: organigramme.nodes,
+    edges: organigramme.edges,
+    resetKey: projects.projectId,
+    onSave: () =>
+      organigramme.saveProject(projects.projectId, projects.projectTitle, projects.refreshProjectList, {
+        silent: true,
+      }),
+    delayMs: 4000,
+  });
 
-  // --- Garde d'authentification ---
+  const initializedUserIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const userId = session?.user?.id ?? null;
+
+    if (userId && initializedUserIdRef.current !== userId) {
+      initializedUserIdRef.current = userId;
+      projects.initProjects();
+    }
+
+    if (!userId) {
+      initializedUserIdRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
   if (authLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
@@ -54,7 +75,7 @@ export default function OrganigrammePage() {
   }
 
   if (!session) {
-    return <LoginForm onLoggedIn={() => {}} />;
+    return <LoginForm onLoggedIn={() => { }} />;
   }
 
   return (
@@ -79,19 +100,27 @@ export default function OrganigrammePage() {
         onProjectTitleChange={projects.setProjectTitle}
         onOpenProjectsModal={() => projects.setProjectsModalOpen(true)}
         onAddPerson={organigramme.addPerson}
+        onUndo={organigramme.undo}
+        onRedo={organigramme.redo}
+        canUndo={organigramme.canUndo}
+        canRedo={organigramme.canRedo}
         onSave={() => organigramme.saveProject(projects.projectId, projects.projectTitle, projects.refreshProjectList)}
         saving={organigramme.saving}
+        autoSaving={autoSaving}
+        lastAutoSavedAt={lastAutoSavedAt}
         onExportPDF={() => organigramme.exportPDF(projects.projectTitle)}
+        exportingPdf={organigramme.exportingPdf}
+        exportPdfProgress={organigramme.exportPdfProgress}
         onOpenAccount={() => setAccountOpen(true)}
       />
 
       {/* Zone Canvas */}
       <div className="flex-1 w-full h-full relative" ref={organigramme.printRef}>
         <img
-          src="/logo-mdg.jpg"
+          src="/mdg-logo/mdgservices-logo.png"
           alt="Logo MDG Services"
           draggable={false}
-          className="absolute top-3 left-3 h-10 w-auto select-none pointer-events-none z-10"
+          className="absolute top-2 left-2 md:top-3 md:left-3 h-6 md:h-10 w-auto select-none pointer-events-none z-10"
         />
 
         <ReactFlow
@@ -105,6 +134,14 @@ export default function OrganigrammePage() {
           nodeTypes={nodeTypes}
           deleteKeyCode={['Backspace', 'Delete']}
           fitView
+          proOptions={{ hideAttribution: true }}
+          ariaLabelConfig={{
+            'controls.ariaLabel': 'Contrôles du canevas',
+            'controls.zoomIn.ariaLabel': 'Zoom avant',
+            'controls.zoomOut.ariaLabel': 'Zoom arrière',
+            'controls.fitView.ariaLabel': "Ajuster à l'écran",
+            'controls.interactive.ariaLabel': "Activer ou désactiver l'interactivité",
+          }}
           className="bg-gradient-to-br from-slate-50/50 to-slate-100/50"
         >
           <Background color="#94a3b8" gap={16} className="opacity-30" />

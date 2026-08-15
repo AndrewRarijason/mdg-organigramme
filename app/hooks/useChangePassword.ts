@@ -3,6 +3,9 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
+const ALLOWED_EMAIL_SUFFIX = 'madagascar-services.com';
+const DOMAIN_ERROR_MESSAGE = `Seule l'adresse email du domaine "${ALLOWED_EMAIL_SUFFIX}" est autorisée.`;
+
 export function useChangePassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,8 +22,22 @@ export function useChangePassword() {
 
     setLoading(true);
     try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      const currentEmail = (user?.email ?? '').trim().toLowerCase();
+      if (!currentEmail || !currentEmail.endsWith(ALLOWED_EMAIL_SUFFIX)) {
+        setError(DOMAIN_ERROR_MESSAGE);
+        return false;
+      }
+
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+
       setSuccess(true);
       return true;
     } catch (err: any) {

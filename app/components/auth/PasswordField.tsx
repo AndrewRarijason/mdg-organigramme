@@ -30,7 +30,7 @@ export function PasswordField({
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(value !== '')}
-        className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
+        className="peer w-full px-4 pt-6 pb-2 bg-white border border-slate-300 text-[13px] md:text-sm rounded-xl text-slate-800 placeholder-transparent focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition duration-200 pr-10"
         placeholder=" "
       />
       <label

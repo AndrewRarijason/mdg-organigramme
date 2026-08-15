@@ -171,3 +171,88 @@ USING (bucket_id = 'photos_employes');
 -- CREATE POLICY "Owner select profile" ON profiles FOR SELECT TO authenticated USING (auth.uid() = id);
 -- CREATE POLICY "Owner update profile" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
 -- CREATE POLICY "Owner insert profile" ON profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+
+
+
+
+
+
+
+-------------------
+
+-- ============================================================
+-- MIGRATION - Forcer le domaine email côté Supabase Auth
+-- Domaine autorisé: @madagascar-services.com
+-- ============================================================
+
+-- 1) Fonction commune de validation du domaine
+create or replace function public.assert_mdg_email_domain(p_email text)
+returns void
+language plpgsql
+as $$
+begin
+  if p_email is null
+     or lower(trim(p_email)) not like '%@madagascar-services.com' then
+    raise exception
+      using message = 'L''adresse email doit se terminer par "@madagascar-services.com".';
+  end if;
+end;
+$$;
+
+-- 2) Bloquer la création d'utilisateurs auth.users hors domaine
+create or replace function public.enforce_mdg_domain_on_auth_user_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.assert_mdg_email_domain(new.email);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_enforce_mdg_domain_on_auth_user_insert on auth.users;
+create trigger trg_enforce_mdg_domain_on_auth_user_insert
+before insert on auth.users
+for each row
+execute function public.enforce_mdg_domain_on_auth_user_insert();
+
+-- 3) Bloquer le changement d'email vers un domaine interdit
+create or replace function public.enforce_mdg_domain_on_auth_user_email_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.assert_mdg_email_domain(new.email);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_enforce_mdg_domain_on_auth_user_email_update on auth.users;
+create trigger trg_enforce_mdg_domain_on_auth_user_email_update
+before update of email on auth.users
+for each row
+execute function public.enforce_mdg_domain_on_auth_user_email_update();
+
+-- 4) Bloquer le changement de mot de passe pour les comptes hors domaine
+-- (utile si des comptes non conformes existent déjà)
+create or replace function public.enforce_mdg_domain_on_password_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.assert_mdg_email_domain(coalesce(new.email, old.email));
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_enforce_mdg_domain_on_password_update on auth.users;
+create trigger trg_enforce_mdg_domain_on_password_update
+before update of encrypted_password on auth.users
+for each row
+execute function public.enforce_mdg_domain_on_password_update();

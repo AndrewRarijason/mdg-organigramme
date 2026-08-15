@@ -1,0 +1,14 @@
+<svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Lignes d'organigramme -->
+  <path d="M50 36 V52 M30 52 H70 M30 52 V64 M70 52 V64" stroke="#94A3B8" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Chef d'équipe / Racine -->
+  <circle cx="50" cy="22" r="10" fill="#0F172A"/>
+  <path d="M42 34 C42 29.5 45.5 28 50 28 C54.5 28 58 29.5 58 34" fill="#0F172A"/>
+
+  <!-- Membre Gauche -->
+  <circle cx="30" cy="72" r="8" fill="#2563EB"/>
+  
+  <!-- Membre Droit -->
+  <circle cx="70" cy="72" r="8" fill="#10B981"/>
+</svg>
