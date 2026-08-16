@@ -1,13 +1,26 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Handle, Position, NodeResizer } from '@xyflow/react';
-import { X } from 'lucide-react';
+import { Handle, Position, NodeResizer, useNodeConnections } from '@xyflow/react';
+import { Briefcase, Users } from 'lucide-react';
 import type { CustomNodeData } from '@/app/types/organigramme';
+import { useExportMode } from '@/app/lib/exportMode';
 
+/**
+ * Carte "personne" de l'organigramme.
+ *
+ * Identité visuelle (couleur de marque #205170) :
+ * - Les nœuds SANS supérieur (sommet de la hiérarchie) reçoivent un fond
+ *   plein #205170 : au premier coup d'œil, la ou les têtes de
+ *   l'organigramme se distinguent instantanément du reste des équipes.
+ * - Tous les autres nœuds gardent une carte claire avec une fine liséré
+ *   d'accent en haut et des touches #205170 (avatar, badge poste,
+ *   points d'ancrage), pour rester cohérents avec les liaisons.
+ * - Un badge discret indique le nombre de subordonnés directs, pour lire
+ *   la taille de chaque équipe sans avoir à compter les branches.
+ */
 export const PersonNode = ({
-  id,
   data,
   selected,
 }: {
@@ -15,101 +28,136 @@ export const PersonNode = ({
   data: CustomNodeData;
   selected?: boolean;
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Sans nom';
+  const initials =
+    `${(data.firstName || '').trim().charAt(0)}${(data.lastName || '').trim().charAt(0)}`.toUpperCase() || '?';
+  const isExporting = useExportMode();
+
+  // Connexions réelles de ce nœud (le hook déduit automatiquement le
+  // nœud courant depuis le contexte React Flow interne)
+  const targetConnections = useNodeConnections({ handleType: 'target' }); // liaisons vers la mère
+  const sourceConnections = useNodeConnections({ handleType: 'source' }); // liaisons vers les filles
+
+  const hasParent = targetConnections.length > 0;
+  const hasChildren = sourceConnections.length > 0;
+  const directReportsCount = sourceConnections.length;
+
+  // Sommet de la hiérarchie = aucun supérieur.
+  const isTopLevel = !hasParent;
+
+  // Sur le canevas interactif, les points restent toujours visibles (on
+  // doit pouvoir créer une liaison même sur un nœud qui n'en a pas
+  // encore). Seul l'export PDF masque les points inutilisés.
+  const showTopHandle = !isExporting || hasParent;
+  const showBottomHandle = !isExporting || hasChildren;
 
   return (
     <motion.div
-      className="w-full h-auto min-w-[90px] md:min-w-[120px] box-border bg-white border-2 border-slate-300 rounded-lg p-1.5 md:p-2 shadow-md flex flex-col items-center gap-0.5 md:gap-1 relative group"
-      initial={{ scale: 0.8, opacity: 0 }}
+      className={`w-full h-auto min-w-[160px] md:min-w-[200px] box-border rounded-2xl p-3 md:p-4 flex flex-col items-center gap-2 relative group border transition-colors duration-300 ${
+        isTopLevel
+          ? 'bg-[#205170] border-[#163c53] shadow-lg shadow-[#205170]/20'
+          : 'bg-white/95 backdrop-blur-md border-slate-200/80 shadow-sm hover:border-[#205170]/40'
+      } ${selected ? 'border-[#205170] ring-2 ring-[#205170]/25' : ''}`}
+      initial={{ scale: 0.85, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.8, opacity: 0 }}
-      transition={{ duration: 0.2, type: 'spring', stiffness: 500 }}
+      exit={{ scale: 0.85, opacity: 0 }}
+      whileHover={{ y: -3 }}
+      transition={{ duration: 0.25, type: 'spring', stiffness: 400 }}
     >
-      {/* Bouton de suppression */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          data.onDeleteNode?.(id);
-        }}
-        onTouchStart={(e) => {
-          e.stopPropagation();
-          data.onDeleteNode?.(id);
-        }}
-        title="Supprimer la carte"
-        className={`absolute -top-2 -right-2 w-5 h-5 md:w-6 md:h-6 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white text-xs font-bold rounded-full flex items-center justify-center transition shadow-md z-30 cursor-pointer ${
-          selected ? 'opacity-100 scale-110' : 'opacity-80 sm:opacity-0 sm:group-hover:opacity-100'
-        }`}
-      >
-        <X className="w-3 h-3" />
-      </button>
+      {/* Liséré d'accent supérieur — uniquement sur les cartes claires,
+          la carte "sommet" étant déjà pleine couleur */}
+      {!isTopLevel && (
+        <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-2xl bg-gradient-to-r from-[#205170] to-[#2d6d94]" />
+      )}
 
       {/* Poignées de redimensionnement */}
       <NodeResizer
         isVisible={selected}
-        minWidth={90}
+        minWidth={150}
         maxWidth={400}
-        minHeight={90}
-        handleStyle={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#2563eb', border: '1px solid white' }}
-        lineStyle={{ borderColor: '#2563eb' }}
-      />
-
-      {/* Points d'ancrage */}
-      <Handle type="target" position={Position.Top} className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 !bg-blue-600 !border-2 !border-white cursor-pointer" />
-      <Handle type="source" position={Position.Bottom} className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 !bg-blue-600 !border-2 !border-white cursor-pointer" />
-
-      {/* Photo de profil */}
-      <div
-        onClick={() => fileInputRef.current?.click()}
-        className="w-8 h-8 md:w-12 md:h-12 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 cursor-pointer relative group-hover:opacity-90 transition"
-        title="Cliquer pour changer la photo"
-      >
-        <img
-          src={data.photoUrl || 'https://via.placeholder.com/150?text=Photo'}
-          alt={`${data.lastName} ${data.firstName}`}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-white text-[8px] md:text-[9px] text-center font-medium">
-          Changer
-        </div>
-      </div>
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          if (e.target.files && e.target.files[0]) {
-            data.onPhotoUpload(id, e.target.files[0]);
-          }
+        minHeight={130}
+        handleStyle={{
+          width: 9,
+          height: 9,
+          borderRadius: 3,
+          backgroundColor: '#205170',
+          border: '2px solid white',
         }}
+        lineStyle={{ borderColor: '#205170', strokeWidth: 1.5 }}
       />
 
-      {/* Champs éditables */}
-      <div className="w-full flex flex-col gap-0.5 md:gap-1 text-[9px] md:text-[11px]">
-        <div className="flex gap-0.5 md:gap-1 justify-center">
-          <input
-            type="text"
-            value={data.lastName}
-            onChange={(e) => data.onChange(id, 'lastName', e.target.value)}
-            placeholder="Nom"
-            className="w-1/2 text-right font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
-          />
-          <input
-            type="text"
-            value={data.firstName}
-            onChange={(e) => data.onChange(id, 'firstName', e.target.value)}
-            placeholder="Prénom"
-            className="w-1/2 font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
-          />
-        </div>
-        <textarea
-          value={data.jobTitle}
-          onChange={(e) => data.onChange(id, 'jobTitle', e.target.value)}
-          placeholder="Intitulé du poste"
-          rows={2}
-          className="text-slate-500 text-center text-[8px] md:text-[10px] border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent resize-none w-full overflow-hidden leading-tight"
+      {/* Points d'ancrage (masqués uniquement à l'export PDF si non utilisés) */}
+      {showTopHandle && (
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!w-3 !h-3 md:!w-3.5 md:!h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
         />
+      )}
+      {showBottomHandle && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!w-3 !h-3 md:!w-3.5 md:!h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
+        />
+      )}
+
+      {/* Photo de profil (ou initiales si aucune photo n'a été ajoutée) */}
+      <div className="relative mt-1">
+        <div
+          className={`w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden p-0.5 flex-shrink-0 shadow-md ${
+            isTopLevel ? 'bg-white/15 ring-2 ring-white/30' : 'bg-gradient-to-tr from-[#205170] to-[#2d6d94]'
+          }`}
+        >
+          <div className="w-full h-full rounded-full overflow-hidden bg-slate-50 flex items-center justify-center">
+            {data.photoUrl ? (
+              <img src={data.photoUrl} alt={fullName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg md:text-xl font-bold text-[#205170] select-none">{initials}</span>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Informations (lecture seule) */}
+      <div className="w-full flex flex-col gap-1 text-[14px] md:text-[16px] items-center">
+        <div className="text-center px-1 w-full">
+          <span className={`font-semibold ${isTopLevel ? 'text-white/90' : 'text-slate-800'}`}>
+            {data.firstName}
+          </span>{' '}
+          <span
+            className={`font-bold uppercase tracking-wide ${isTopLevel ? 'text-white' : 'text-slate-900'}`}
+          >
+            {data.lastName}
+          </span>
+        </div>
+
+        {data.jobTitle && (
+          <div
+            className={`w-full rounded-md px-2 py-1 border flex items-start gap-1.5 mt-0.5 justify-center ${
+              isTopLevel ? 'bg-white/10 border-white/15' : 'bg-[#205170] border-[#205170]/10'
+            }`}
+          >
+            <span
+              className={`text-center text-[11px] md:text-[12px] font-medium leading-tight whitespace-normal break-words max-w-full ${
+                isTopLevel ? 'text-white/85' : 'text-slate-100'
+              }`}
+            >
+              {data.jobTitle}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Badge "nombre de subordonnés directs" — masqué pendant la
+          sélection (chevauche les poignées de redimensionnement) et
+          pendant l'export PDF (élément d'interface, pas d'organigramme) */}
+      {hasChildren && !selected && !isExporting && (
+        <div className="absolute -bottom-2.5 right-3 flex items-center gap-1 bg-white border border-[#205170]/20 text-[#205170] text-[12px] md:text-[13px] font-semibold px-1.5 py-0.5 rounded-full shadow-sm">
+          <Users className="w-3 h-3 md:w-3.5 md:h-3.5" />
+          {directReportsCount}
+        </div>
+      )}
     </motion.div>
   );
 };

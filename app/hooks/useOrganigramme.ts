@@ -16,6 +16,7 @@ import {
 import { domToPng } from 'modern-screenshot';
 import jsPDF from 'jspdf';
 import { supabase } from '@/lib/supabaseClient';
+import { getLayoutedElements } from '@/app/lib/autoLayout';
 
 /**
  * Toute la logique du canevas : chargement/sauvegarde des personnes et
@@ -67,6 +68,20 @@ export function useOrganigramme() {
   const pastRef = useRef<FlowSnapshot[]>([]);
   const futureRef = useRef<FlowSnapshot[]>([]);
   const textEditLockTimerRef = useRef<number | null>(null);
+  // Empêche de committer plusieurs fois pendant un même geste continu
+  // (drag ou resize) : on ne veut capturer le snapshot "avant" qu'une
+  // seule fois, au tout premier événement du geste.
+  const gestureCommitPendingRef = useRef(false);
+  // Après une édition de contenu (nom/poste) qui peut faire grandir une
+  // carte (retour à la ligne), on ne connaît la VRAIE hauteur qu'une fois
+  // React Flow ayant re-mesuré le DOM après le rendu — pas au moment où
+  // on vient de changer le texte. Ce ref mémorise quelle carte attendre
+  // et sa hauteur mesurée AVANT l'édition, pour déclencher un second
+  // recalcul de disposition dès que la nouvelle hauteur réelle est connue
+  // (voir l'effet plus bas). Ainsi les rangées suivantes descendent bien
+  // si la carte s'est agrandie, au lieu de laisser la liaison du bas
+  // passer derrière la carte.
+  const pendingRelayoutRef = useRef<{ nodeId: string; previousHeight: number | undefined } | null>(null);
 
   const updateHistoryFlags = useCallback(() => {
     setCanUndo(pastRef.current.length > 0);
@@ -204,10 +219,40 @@ export function useOrganigramme() {
     };
   }, []);
 
+  // Second passage de disposition après une édition de texte : attend que
+  // React Flow ait vraiment re-mesuré la carte éditée (retour à la ligne
+  // éventuel) avant de recalculer les positions Y et les branchY, pour
+  // que les niveaux suivants descendent si la carte a grandi.
+  useEffect(() => {
+    const pending = pendingRelayoutRef.current;
+    if (!pending || isRestoringRef.current || gestureCommitPendingRef.current) return;
+
+    const node = nodes.find((n) => n.id === pending.nodeId);
+    if (!node) {
+      pendingRelayoutRef.current = null;
+      return;
+    }
+
+    const measuredHeight = node.measured?.height;
+    // Toujours la même hauteur qu'avant l'édition : la vraie mesure post-
+    // rendu n'est pas encore arrivée, on attend le prochain passage.
+    if (measuredHeight === undefined || measuredHeight === pending.previousHeight) return;
+
+    pendingRelayoutRef.current = null;
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      nodesRef.current,
+      edgesRef.current
+    );
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
+  }, [nodes]);
+
   const resetCanvas = useCallback(() => {
     setNodes([]);
     setEdges([]);
     clearHistory();
+    gestureCommitPendingRef.current = false;
+    pendingRelayoutRef.current = null;
   }, [clearHistory]);
 
   // --- Édition des champs d'une carte ---
@@ -256,75 +301,92 @@ export function useOrganigramme() {
   );
 
   // --- Chargement depuis Supabase ---
-  const loadNodesFromDb = useCallback(
-    async (pId: string) => {
-      const { data: dbNodes, error } = await supabase.from('nodes').select('*').eq('project_id', pId);
+  const loadNodesFromDb = useCallback(async (pId: string) => {
+    const [{ data: dbNodes }, { data: dbEdges }] = await Promise.all([
+      supabase.from('nodes').select('*').eq('project_id', pId),
+      supabase.from('edges').select('*').eq('project_id', pId),
+    ]);
 
-      if (error) {
-        console.error('Erreur chargement nodes:', error);
-        return;
-      }
-
-      if (!dbNodes || dbNodes.length === 0) {
-        setNodes([]);
-        setEdges([]);
-        clearHistory();
-        return;
-      }
-
-      const loadedNodes: Node[] = dbNodes.map((item) => ({
-        id: item.id,
-        type: 'personNode',
-        position: { x: item.position_x, y: item.position_y },
-        style: item.width ? { width: item.width, ...(item.height ? { height: item.height } : {}) } : { width: 180 },
-        data: buildNodeData({
-          firstName: item.first_name || '',
-          lastName: item.last_name || '',
-          jobTitle: item.job_title || '',
-          photoUrl: item.photo_url || '',
-        }),
-      }));
-
-      const loadedEdges: Edge[] = dbNodes
-        .filter((item) => item.parent_id !== null)
-        .map((item) => ({
-          id: `e-${item.parent_id}-${item.id}`,
-          source: item.parent_id as string,
-          target: item.id,
-          animated: true,
-          interactionWidth: 30,
-        }));
-
-      setNodes(loadedNodes);
-      setEdges(loadedEdges);
+    if (!dbNodes || dbNodes.length === 0) {
+      setNodes([]);
+      setEdges([]);
       clearHistory();
-    },
-    [buildNodeData, clearHistory]
-  );
+      gestureCommitPendingRef.current = false;
+      pendingRelayoutRef.current = null;
+      return;
+    }
 
-  const shouldCommitNodeChanges = useCallback((changes: NodeChange[]) => {
+    // 1. Reconstruire les edges React Flow à partir de la table Supabase `edges`
+    const loadedEdges: Edge[] = (dbEdges || []).map((item) => ({
+      id: item.id || `e-${item.source_id}-${item.target_id}`,
+      source: item.source_id,
+      target: item.target_id,
+      type: 'orgEdge',
+      animated: true,
+      interactionWidth: 30,
+    }));
+
+    // 2. Reconstruire les nodes
+    const loadedNodes: Node[] = dbNodes.map((item) => ({
+      id: item.id,
+      type: 'personNode',
+      position: { x: item.position_x, y: item.position_y },
+      style: item.width ? { width: item.width, ...(item.height ? { height: item.height } : {}) } : { width: 180 },
+      data: buildNodeData({
+        firstName: item.first_name || '',
+        lastName: item.last_name || '',
+        jobTitle: item.job_title || '',
+        photoUrl: item.photo_url || '',
+      }),
+    }));
+
+    setNodes(loadedNodes);
+    setEdges(loadedEdges);
+    clearHistory();
+    gestureCommitPendingRef.current = false;
+    pendingRelayoutRef.current = null;
+  }, [buildNodeData, clearHistory]);
+
+  // Un changement 'remove' doit toujours committer (peu importe le geste).
+  const hasRemoveChange = useCallback((changes: NodeChange[]) => {
+    return changes.some((change) => change.type === 'remove');
+  }, []);
+
+  // Début d'un geste continu (drag ou resize) : c'est LE moment où il faut
+  // capturer le snapshot "avant", car nodesRef.current reflète encore la
+  // position/taille d'origine (aucune mise à jour n'a encore eu lieu).
+  const isGestureStart = useCallback((changes: NodeChange[]) => {
     return changes.some((change) => {
-      if (change.type === 'remove') {
-        return true;
-      }
-
       if (change.type === 'position') {
         const posChange = change as NodeChange & { dragging?: boolean };
-        return posChange.dragging === false;
+        return posChange.dragging === true;
       }
-
       if (change.type === 'dimensions') {
         // IMPORTANT : React Flow émet aussi des changements 'dimensions'
         // automatiquement lors de la simple mesure d'une carte (création,
         // chargement, restauration undo/redo) — ces mesures n'ont PAS la
         // propriété `resizing`. Seul un vrai redimensionnement utilisateur
         // via NodeResizer la passe explicitement (true pendant le
-        // glissement, false à son relâchement). On ne commite donc QUE
-        // sur la fin explicite d'un redimensionnement volontaire.
+        // glissement, false à son relâchement).
+        const dimChange = change as NodeChange & { resizing?: boolean };
+        return dimChange.resizing === true;
+      }
+      return false;
+    });
+  }, []);
+
+  // Fin d'un geste continu : sert uniquement à réarmer
+  // gestureCommitPendingRef pour le prochain drag/resize.
+  const isGestureEnd = useCallback((changes: NodeChange[]) => {
+    return changes.some((change) => {
+      if (change.type === 'position') {
+        const posChange = change as NodeChange & { dragging?: boolean };
+        return posChange.dragging === false;
+      }
+      if (change.type === 'dimensions') {
         const dimChange = change as NodeChange & { resizing?: boolean };
         return dimChange.resizing === false;
       }
-
       return false;
     });
   }, []);
@@ -332,12 +394,32 @@ export function useOrganigramme() {
   // --- Événements React Flow ---
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      if (!isRestoringRef.current && shouldCommitNodeChanges(changes)) {
-        commitHistory();
+      if (!isRestoringRef.current) {
+        if (hasRemoveChange(changes)) {
+          commitHistory();
+        } else if (isGestureStart(changes) && !gestureCommitPendingRef.current) {
+          // BUG CORRIGÉ : on committe ICI, au premier événement du geste
+          // (dragging/resizing === true), et non plus à sa fin. À ce
+          // stade, nodesRef.current contient encore la position/taille
+          // AVANT le déplacement — c'est bien ce snapshot-là que l'undo
+          // doit pouvoir restaurer. Auparavant, le commit avait lieu sur
+          // l'événement de fin (dragging === false), mais chaque
+          // événement intermédiaire du drag applique déjà la nouvelle
+          // position en continu via setNodes, donc nodesRef.current
+          // reflétait déjà la position D'ARRIVÉE : le snapshot "avant"
+          // enregistré était en réalité identique à l'état courant, et
+          // l'undo ne ramenait nulle part.
+          gestureCommitPendingRef.current = true;
+          commitHistory();
+        }
+
+        if (isGestureEnd(changes)) {
+          gestureCommitPendingRef.current = false;
+        }
       }
       setNodes((nds) => applyNodeChanges(changes, nds));
     },
-    [commitHistory, shouldCommitNodeChanges]
+    [commitHistory, hasRemoveChange, isGestureStart, isGestureEnd]
   );
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
@@ -359,7 +441,7 @@ export function useOrganigramme() {
   const onConnect = useCallback(
     (connection: Connection) => {
       commitHistory();
-      setEdges((eds) => addEdge({ ...connection, animated: true, interactionWidth: 30 }, eds));
+      setEdges((eds) => addEdge({ ...connection, type: 'orgEdge', animated: true, interactionWidth: 30 }, eds));
     },
     [commitHistory]
   );
@@ -377,26 +459,32 @@ export function useOrganigramme() {
     toast.success('Liaison supprimée');
   }, [edgeDeleteTarget, commitHistory]);
 
-  // --- Ajouter une personne (centrée dans la zone visible) ---
+  // --- Fonction utilitaire : Calculer le niveau hiérarchique réel d'un nœud ---
+  const getNodeDepth = useCallback((nodeId: string, allEdges: Edge[]): number => {
+    const parentEdges = allEdges.filter((e) => e.target === nodeId);
+    if (parentEdges.length === 0) return 1;
+
+    const parentDepths = parentEdges.map((e) => getNodeDepth(e.source, allEdges));
+    return Math.max(...parentDepths) + 1;
+  }, []);
+
+  // --- Ajouter une personne vide (Niveau 1) ---
   const addPerson = useCallback(() => {
     const newId = crypto.randomUUID();
-    let flowX = 250 + Math.random() * 40;
-    let flowY = 150 + Math.random() * 40;
+    const Y_START = 50;
+    const X_START = 50;
+    const X_SPACING = 220;
 
-    if (rfInstance && printRef.current) {
-      const bounds = printRef.current.getBoundingClientRect();
-      const screenCenter = { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
-      const flowCenter = rfInstance.screenToFlowPosition(screenCenter);
-      const cardWidth = 180;
-      const cardHeight = 130;
-      flowX = flowCenter.x - cardWidth / 2 + (Math.random() * 20 - 10);
-      flowY = flowCenter.y - cardHeight / 2 + (Math.random() * 20 - 10);
-    }
+    // Compter les cartes réellement au niveau 1
+    const level1Nodes = nodesRef.current.filter(
+      (n) => getNodeDepth(n.id, edgesRef.current) === 1
+    );
+    const flowX = X_START + level1Nodes.length * X_SPACING;
 
     const newNode: Node = {
       id: newId,
       type: 'personNode',
-      position: { x: flowX, y: flowY },
+      position: { x: flowX, y: Y_START },
       style: { width: 180 },
       data: buildNodeData({
         lastName: 'Nom',
@@ -409,9 +497,181 @@ export function useOrganigramme() {
     commitHistory();
     setNodes((nds) => nds.concat(newNode));
     toast.success('Nouvelle carte ajoutée');
-  }, [rfInstance, buildNodeData, commitHistory]);
+  }, [buildNodeData, commitHistory, getNodeDepth]);
 
-  // --- Raccourcis clavier globaux ---
+  // --- Ajouter un employé via le formulaire (upload photo + edge parent +
+  //     recalcul automatique de la disposition de tout l'arbre) ---
+  const addEmployeeFromForm = useCallback(
+    async (formData: {
+      firstName: string;
+      lastName: string;
+      jobTitle: string;
+      photoFile: File | null;
+      parentIds: string[];
+    }) => {
+      const newId = crypto.randomUUID();
+      let photoUrl = '';
+
+      if (formData.photoFile) {
+        const fileExt = formData.photoFile.name.split('.').pop();
+        const fileName = `${newId}-${Math.random()}.${fileExt}`;
+        const filePath = `avatars/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('photos_employes')
+          .upload(filePath, formData.photoFile);
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage
+            .from('photos_employes')
+            .getPublicUrl(filePath);
+          photoUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      // 1. Création du nœud avec une position temporaire (0,0)
+      const newNode: Node = {
+        id: newId,
+        type: 'personNode',
+        position: { x: 0, y: 0 },
+        style: { width: 180 },
+        data: buildNodeData({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          jobTitle: formData.jobTitle,
+          photoUrl,
+        }),
+      };
+
+      // 2. Création des nouvelles liaisons
+      const newEdges: Edge[] = formData.parentIds.map((pId) => ({
+        id: `e-${pId}-${newId}`,
+        source: pId,
+        target: newId,
+        type: 'orgEdge',
+        animated: true,
+        interactionWidth: 30,
+      }));
+
+      // 3. On ajoute temporairement les nouveaux éléments aux listes existantes
+      const updatedNodes = nodesRef.current.concat(newNode);
+      const updatedEdges = edgesRef.current.concat(newEdges);
+
+      // 4. MAGIE : On passe le tout à Dagre pour qu'il calcule les positions parfaites
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        updatedNodes,
+        updatedEdges
+      );
+
+      // 5. On sauvegarde dans l'historique et on met à jour l'état React Flow
+      commitHistory();
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+      toast.success("Employé ajouté et organigramme réorganisé");
+    },
+    [buildNodeData, commitHistory]
+    // Plus besoin de getNodeDepth ici !
+  );
+
+  // --- Modifier un employé existant depuis le formulaire (nom, prénom,
+  //     poste, photo, et éventuellement son supérieur hiérarchique) ---
+  const updateEmployee = useCallback(
+    async (
+      id: string,
+      updates: {
+        firstName: string;
+        lastName: string;
+        jobTitle: string;
+        photoFile: File | null;
+        parentIds: string[];
+      }
+    ) => {
+      commitHistory();
+
+      // Hauteur mesurée AVANT l'édition : c'est celle que le premier
+      // recalcul de disposition ci-dessous va utiliser (React Flow n'a
+      // pas encore re-mesuré le DOM avec le nouveau texte). Servira de
+      // référence pour savoir quand la vraie hauteur post-édition est
+      // enfin connue (voir l'effet plus haut).
+      const previousMeasuredHeight = nodesRef.current.find((n) => n.id === id)?.measured?.height;
+
+      let photoUrl: string | undefined;
+      if (updates.photoFile) {
+        const fileExt = updates.photoFile.name.split('.').pop();
+        const fileName = `${id}-${Math.random()}.${fileExt}`;
+        const filePath = `avatars/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('photos_employes')
+          .upload(filePath, updates.photoFile);
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage
+            .from('photos_employes')
+            .getPublicUrl(filePath);
+          photoUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      // Reconstruire les nouvelles liaisons
+      const withoutOldEdges = edgesRef.current.filter((e) => e.target !== id);
+      const newEdges: Edge[] = updates.parentIds.map((pId) => ({
+        id: `e-${pId}-${id}`,
+        source: pId,
+        target: id,
+        type: 'orgEdge',
+        animated: true,
+        interactionWidth: 30,
+      }));
+      const finalEdges = withoutOldEdges.concat(newEdges);
+
+      const updatedNodesRaw = nodesRef.current.map((node) =>
+        node.id === id
+          ? {
+            ...node,
+            data: {
+              ...node.data,
+              firstName: updates.firstName,
+              lastName: updates.lastName,
+              jobTitle: updates.jobTitle,
+              ...(photoUrl ? { photoUrl } : {}),
+            },
+          }
+          : node
+      );
+
+      // Recalcule toute la disposition (X via dagre, Y unifié par niveau,
+      // branchY par paire de niveaux) — la hiérarchie a pu changer.
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        updatedNodesRaw,
+        finalEdges
+      );
+
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+
+      // Le nœud édité n'a pas encore été re-mesuré avec son NOUVEAU
+      // contenu (poste et/ou nom potentiellement plus long) : la
+      // disposition ci-dessus utilise donc encore son ancienne hauteur.
+      // On planifie un second recalcul dès que la vraie hauteur sera
+      // connue, pour que les rangées suivantes descendent si la carte
+      // s'est agrandie et masquait sa liaison du bas.
+      pendingRelayoutRef.current = { nodeId: id, previousHeight: previousMeasuredHeight };
+
+      toast.success('Employé mis à jour');
+    },
+    [commitHistory]
+  );
+
+  // --- Supprimer un employé depuis le formulaire (supprime uniquement ses
+  //     liaisons directes ; ses descendants restent dans l'arbre, sans
+  //     supérieur — même comportement que handleDeleteNode) ---
+  const deleteEmployee = useCallback(
+    (id: string) => {
+      handleDeleteNode(id);
+    },
+    [handleDeleteNode]
+  );
+
+
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
       if (!(target instanceof HTMLElement)) return false;
@@ -453,26 +713,53 @@ export function useOrganigramme() {
       if (!projectId) return;
       setSaving(true);
       try {
-        const parentMap = new Map<string, string>();
-        edges.forEach((edge) => parentMap.set(edge.target, edge.source));
-
-        const payload = nodes.map((n) => ({
+        // 1. Mise à jour des nœuds (sans parent_id)
+        // 1. Mise à jour des nœuds (sans parent_id)
+        const payloadNodes = nodes.map((n) => ({
           id: n.id,
           project_id: projectId,
           first_name: (n.data as any).firstName || '',
           last_name: (n.data as any).lastName || '',
           job_title: (n.data as any).jobTitle || '',
           photo_url: (n.data as any).photoUrl || '',
-          parent_id: parentMap.get(n.id) || null,
           position_x: n.position.x,
           position_y: n.position.y,
           width: (n.style?.width as number) || n.measured?.width || 180,
           height: (n.style?.height as number) || n.measured?.height || null,
         }));
 
-        if (payload.length > 0) {
-          const { error } = await supabase.from('nodes').upsert(payload, { onConflict: 'id' });
-          if (error) throw error;
+        if (payloadNodes.length > 0) {
+          // NOUVEAU : On supprime d'abord les nœuds qui ont été effacés du canvas
+          const nodeIds = payloadNodes.map((n) => n.id);
+          await supabase
+            .from('nodes')
+            .delete()
+            .eq('project_id', projectId)
+            .not('id', 'in', `(${nodeIds.join(',')})`);
+
+          // Puis on ajoute/met à jour les nœuds existants
+          const { error: nodeErr } = await supabase.from('nodes').upsert(payloadNodes, { onConflict: 'id' });
+          if (nodeErr) throw nodeErr;
+        } else {
+          // S'il n'y a plus aucune carte sur le canvas, on vide la table pour ce projet
+          await supabase.from('nodes').delete().eq('project_id', projectId);
+        }
+
+        // 2. Synchronisation des relations (edges)
+        // CORRECTION : Une seule suppression des anciennes liaisons (le doublon a été retiré)
+        const { error: deleteEdgeErr } = await supabase.from('edges').delete().eq('project_id', projectId);
+        if (deleteEdgeErr) throw deleteEdgeErr;
+
+        if (edges.length > 0) {
+          const payloadEdges = edges.map((e) => ({
+            project_id: projectId,
+            source_id: e.source,
+            target_id: e.target,
+          }));
+
+          // CORRECTION : Utilisation de .insert() au lieu de .upsert() pour éviter l'erreur RLS UPDATE
+          const { error: edgeErr } = await supabase.from('edges').insert(payloadEdges);
+          if (edgeErr) throw edgeErr;
         }
 
         await supabase
@@ -484,7 +771,6 @@ export function useOrganigramme() {
         if (!options?.silent) toast.success('Organigramme enregistré avec succès !');
       } catch (err: any) {
         if (!options?.silent) toast.error('Erreur lors de la sauvegarde : ' + err.message);
-        else console.error('Erreur auto-save :', err.message);
       } finally {
         setSaving(false);
       }
@@ -618,6 +904,9 @@ export function useOrganigramme() {
     onEdgeClick,
     confirmDeleteEdge,
     addPerson,
+    addEmployeeFromForm,
+    updateEmployee,
+    deleteEmployee,
     saveProject,
     exportPDF,
     exportingPdf,

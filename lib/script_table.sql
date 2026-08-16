@@ -256,3 +256,36 @@ create trigger trg_enforce_mdg_domain_on_password_update
 before update of encrypted_password on auth.users
 for each row
 execute function public.enforce_mdg_domain_on_password_update();
+
+
+
+------ 16/08 ------
+
+-- 1. Supprimer l'ancienne contrainte mono-parentale
+ALTER TABLE nodes DROP COLUMN IF EXISTS parent_id;
+
+-- 2. Créer une table dédiée aux liaisons (multi-mères et multi-enfants)
+CREATE TABLE edges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  source_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE, -- Le supérieur
+  target_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE, -- L'enfant
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT unique_edge UNIQUE (source_id, target_id)
+);
+
+CREATE INDEX idx_edges_project ON edges(project_id);
+CREATE INDEX idx_edges_source ON edges(source_id);
+CREATE INDEX idx_edges_target ON edges(target_id);
+
+-- RLS
+ALTER TABLE edges ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Owner select edges" ON edges FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM projects p WHERE p.id = edges.project_id AND p.user_id = auth.uid()));
+
+CREATE POLICY "Owner insert edges" ON edges FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM projects p WHERE p.id = edges.project_id AND p.user_id = auth.uid()));
+
+CREATE POLICY "Owner delete edges" ON edges FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM projects p WHERE p.id = edges.project_id AND p.user_id = auth.uid()));

@@ -14,6 +14,7 @@ import {
   MoreVertical,
   CheckCircle2,
   Sparkles,
+  Users,
 } from 'lucide-react';
 
 export function Toolbar({
@@ -21,6 +22,7 @@ export function Toolbar({
   onProjectTitleChange,
   onOpenProjectsModal,
   onAddPerson,
+  onOpenEmployeeList,
   onUndo,
   onRedo,
   canUndo,
@@ -38,6 +40,7 @@ export function Toolbar({
   onProjectTitleChange: (title: string) => void;
   onOpenProjectsModal: () => void;
   onAddPerson: () => void;
+  onOpenEmployeeList: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -82,16 +85,17 @@ export function Toolbar({
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Zone Gauche : Projets & Titre */}
+      {/* Zone Gauche : Titre & Liste des Employés */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
         <motion.button
-          onClick={onOpenProjectsModal}
+          onClick={onOpenEmployeeList}
           className="p-2 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200/80 active:bg-slate-200 text-slate-700 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer border border-slate-200 shadow-xs"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
+          title="Voir les employés"
         >
-          <FolderOpen className="w-4 h-4 text-blue-600" />
-          <span className="hidden sm:inline">Mes projets</span>
+          <Users className="w-4 h-4 text-indigo-600" />
+          <span className="hidden lg:inline">Employés</span>
         </motion.button>
 
         <div className="h-5 w-[1px] bg-slate-200 hidden sm:block" />
@@ -101,8 +105,8 @@ export function Toolbar({
             type="text"
             value={projectTitle}
             onChange={(e) => onProjectTitleChange(e.target.value)}
-            placeholder="Nom..."
-            className="text-sm sm:text-lg font-bold text-slate-800 placeholder-slate-400 bg-transparent px-1 sm:px-2 py-1 rounded-lg border-b-2 border-transparent hover:border-slate-300 focus:border-blue-600 focus:bg-slate-50 focus:outline-none transition-all duration-200 w-[110px] sm:min-w-[200px] truncate"
+            placeholder="Nom du projet"
+            className="text-[13px] sm:text-sm font-bold text-slate-800 placeholder-slate-400 bg-transparent px-1 sm:px-2 py-1 rounded-lg border-b-2 border-transparent hover:border-slate-300 focus:border-blue-600 focus:bg-slate-50 focus:outline-none transition-all duration-200 w-[180px] lg:min-w-[300px] truncate"
           />
         </div>
       </div>
@@ -190,7 +194,7 @@ export function Toolbar({
           title="Ajouter"
         >
           <Plus className="w-4 h-4 text-emerald-400" />
-          <span className="hidden sm:inline">Ajouter</span>
+          <span className="hidden lg:inline">Ajouter</span>
         </motion.button>
 
         {/* Bouton Sauvegarder */}
@@ -209,7 +213,7 @@ export function Toolbar({
           )}
         </motion.button>
 
-        {/* Menu Contextuel / Actions (à côté du compte) */}
+        {/* Menu Contextuel / Actions */}
         <div className="relative" ref={actionsMenuRef}>
           <motion.button
             type="button"
@@ -235,6 +239,24 @@ export function Toolbar({
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 className="absolute right-0 mt-2 w-52 sm:w-60 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden p-1.5"
               >
+                <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Projets & Gestion
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenProjectsModal();
+                    setActionsOpen(false);
+                  }}
+                  className="w-full px-3 py-2.5 text-left text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-600 rounded-xl transition flex items-center gap-2.5 cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4 text-blue-600" />
+                  <span>Mes projets</span>
+                </button>
+
+                <div className="my-1 border-t border-slate-100" />
+
                 <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   Options d'export
                 </div>
