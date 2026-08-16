@@ -52,7 +52,7 @@ export default function AccountPanel({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Moderne & Stylisé */}
-          <div className="relative p-6 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 text-white overflow-hidden flex items-center justify-between shadow-md">
+          <div className="relative p-6 bg-gradient-to-br from-[#205170] to-[#123746] text-white overflow-hidden flex items-center justify-between shadow-md">
             {/* Effets lumineux d'arrière-plan */}
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
             <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
