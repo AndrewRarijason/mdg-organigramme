@@ -20,6 +20,8 @@
     "modern-screenshot": "^4.7.0",
     "musical": "^0.1.0",
     "next": "^16.3.0",
+    "pdf-lib": "^1.17.1",
+    "puppeteer": "^25.8.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-easy-crop": "^6.2.3",

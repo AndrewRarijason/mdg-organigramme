@@ -779,112 +779,77 @@ export function useOrganigramme() {
   );
 
   // --- Export PDF ---
+  // --- Export PDF (via Puppeteer côté serveur) ---
   const exportPDF = useCallback(
     async (projectTitle: string) => {
-      if (!printRef.current || !rfInstance || exportingPdf) return;
+      if (exportingPdf) return;
 
       setExportingPdf(true);
-      setExportPdfProgress(5);
+      setExportPdfProgress(10);
 
-      const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+      let progressTimer: number | null = null;
 
       try {
-        rfInstance.fitView();
-        setExportPdfProgress(15);
+        progressTimer = window.setInterval(() => {
+          setExportPdfProgress((p) => (p < 85 ? p + 3 : p));
+        }, 200);
 
-        await wait(300);
+        const response = await fetch('/api/export-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            // On envoie les nœuds React Flow tels quels (type, style, data...) —
+            // PAS serializeNode(), qui produit le format de sauvegarde DB
+            // (sans `type` ni `style`), incompatible avec le rendu de PersonNode.
+            nodes: nodesRef.current.map((n) => ({
+              id: n.id,
+              type: n.type,
+              position: n.position,
+              style: {
+                width: (typeof n.style?.width === 'number' ? n.style.width : undefined) || n.measured?.width || 200,
+                height: (typeof n.style?.height === 'number' ? n.style.height : undefined) || n.measured?.height || 130,
+              },
+              data: {
+                firstName: (n.data as any)?.firstName || '',
+                lastName: (n.data as any)?.lastName || '',
+                jobTitle: (n.data as any)?.jobTitle || '',
+                photoUrl: (n.data as any)?.photoUrl || '',
+              },
+            })),
+            edges: edgesRef.current,
+            title: projectTitle,
+          }),
+        });
 
-        const element = printRef.current;
-        if (!element) throw new Error('Zone de capture introuvable');
-
-        setExportPdfProgress(25);
-
-        const attribution = element.querySelector('.react-flow__attribution') as HTMLElement | null;
-        const flowRoot = element.querySelector('.react-flow') as HTMLElement | null;
-        const dottedBackground = element.querySelector('.react-flow__background') as HTMLElement | null;
-
-        // AJOUT: masque les outils React Flow (zoom, fit view, etc.)
-        const controls = element.querySelector('.react-flow__controls') as HTMLElement | null;
-
-        const previousAttributionDisplay = attribution?.style.display;
-        const previousFlowBackground = flowRoot?.style.background;
-        const previousElementBackground = element.style.background;
-        const previousDottedDisplay = dottedBackground?.style.display;
-
-        // AJOUT
-        const previousControlsDisplay = controls?.style.display;
-
-        let progressTimer: number | null = null;
-
-        try {
-          if (attribution) attribution.style.display = 'none';
-          if (dottedBackground) dottedBackground.style.display = 'none';
-
-          // AJOUT
-          if (controls) controls.style.display = 'none';
-
-          if (flowRoot) flowRoot.style.background = '#ffffff';
-          element.style.background = '#ffffff';
-
-          setExportPdfProgress(35);
-
-          progressTimer = window.setInterval(() => {
-            setExportPdfProgress((p) => (p < 90 ? p + 3 : p));
-          }, 120);
-
-          const dataUrl = await domToPng(element, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-          });
-
-          if (progressTimer !== null) {
-            window.clearInterval(progressTimer);
-          }
-
-          setExportPdfProgress(92);
-
-          const img = new Image();
-          img.src = dataUrl;
-          await new Promise((res) => {
-            img.onload = res;
-          });
-
-          setExportPdfProgress(97);
-
-          const pdf = new jsPDF({
-            orientation: 'landscape',
-            unit: 'px',
-            format: [img.width, img.height],
-          });
-
-          pdf.addImage(dataUrl, 'PNG', 0, 0, img.width, img.height);
-          pdf.save(projectTitle.toLowerCase().replace(/\s+/g, '-') + '.pdf');
-
-          setExportPdfProgress(100);
-          toast.success('PDF exporté avec succès');
-        } finally {
-          if (progressTimer !== null) {
-            window.clearInterval(progressTimer);
-          }
-
-          if (attribution) attribution.style.display = previousAttributionDisplay ?? '';
-          if (dottedBackground) dottedBackground.style.display = previousDottedDisplay ?? '';
-
-          // AJOUT
-          if (controls) controls.style.display = previousControlsDisplay ?? '';
-
-          if (flowRoot) flowRoot.style.background = previousFlowBackground ?? '';
-          element.style.background = previousElementBackground;
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error || `Échec de l'export (${response.status})`);
         }
+
+        setExportPdfProgress(95);
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = projectTitle.toLowerCase().replace(/\s+/g, '-') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        setExportPdfProgress(100);
+        toast.success('PDF exporté avec succès');
       } catch (err: any) {
         toast.error('Erreur export PDF : ' + (err?.message || 'inconnue'));
       } finally {
-        await wait(400);
+        if (progressTimer !== null) window.clearInterval(progressTimer);
+        await new Promise((res) => setTimeout(res, 400));
         setExportingPdf(false);
         setExportPdfProgress(0);
       }
     },
-    [rfInstance, exportingPdf]
+    [exportingPdf, serializeNode]
   );
 
   return {
