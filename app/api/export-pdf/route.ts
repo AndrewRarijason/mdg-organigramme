@@ -3,18 +3,43 @@ import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { PDFDocument } from 'pdf-lib';
 import { createExportEntry, deleteExportEntry } from '@/app/lib/exportCache';
+import fs from 'fs';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const SCALE = 2;
 
-// En local (dev), @sparticuz/chromium n'a pas de binaire adapté à votre
-// OS : on pointe alors vers votre Chrome/Chromium installé localement.
-// En production sur Vercel, on utilise le binaire fourni par le package.
-const LOCAL_CHROME_PATH =
-  process.env.PUPPETEER_EXECUTABLE_PATH ||
-  'C:\\Users\\Aiky Rarijason\\AppData\\Local\\BraveSoftware\\Brave-Browser\\Application\\brave.exe';
+function getLocalExecutablePath(): string {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  const possiblePaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
+    process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    process.env.LOCALAPPDATA + '\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+
+  for (const path of possiblePaths) {
+    if (path && fs.existsSync(path)) {
+      return path;
+    }
+  }
+
+  return '';
+}
 
 export async function POST(req: NextRequest) {
   let browser: import('puppeteer-core').Browser | null = null;
@@ -34,9 +59,15 @@ export async function POST(req: NextRequest) {
 
     const isVercel = !!process.env.VERCEL;
 
+    const executablePath = isVercel
+      ? await chromium.executablePath(
+          'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
+        )
+      : getLocalExecutablePath();
+
     browser = await puppeteer.launch({
       args: isVercel ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
-      executablePath: isVercel ? await chromium.executablePath() : LOCAL_CHROME_PATH,
+      executablePath,
       headless: true,
     });
 
