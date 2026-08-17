@@ -289,3 +289,18 @@ CREATE POLICY "Owner insert edges" ON edges FOR INSERT TO authenticated
 
 CREATE POLICY "Owner delete edges" ON edges FOR DELETE TO authenticated
   USING (EXISTS (SELECT 1 FROM projects p WHERE p.id = edges.project_id AND p.user_id = auth.uid()));
+
+
+
+
+
+  ------ 17/08----
+  CREATE TABLE pdf_exports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payload JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE pdf_exports ENABLE ROW LEVEL SECURITY;
+-- Aucune policy publique : seule la clé service_role (utilisée uniquement
+-- côté serveur, jamais exposée au client) peut lire/écrire cette table.

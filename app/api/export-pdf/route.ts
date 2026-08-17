@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Aucun nœud à exporter' }, { status: 400 });
     }
 
-    exportId = createExportEntry(nodes, edges, title || 'organigramme');
+    exportId = await createExportEntry(nodes, edges, title || 'organigramme');
 
     const origin = req.nextUrl.origin;
     const printUrl = `${origin}/print/${exportId}`;
@@ -111,6 +111,6 @@ export async function POST(req: NextRequest) {
     console.error('Erreur export PDF Puppeteer :', err);
     return NextResponse.json({ error: err?.message || 'Erreur inconnue' }, { status: 500 });
   } finally {
-    if (exportId) deleteExportEntry(exportId);
+    if (exportId) await deleteExportEntry(exportId);
   }
 }

@@ -1,51 +1,53 @@
+import { supabaseAdmin } from '@/app/lib/supabaseAdmin';
+
 /**
- * Cache mémoire à usage unique pour transmettre les données de
- * l'organigramme (nodes/edges/titre) entre la route d'export PDF et la
- * page /print/[exportId] ouverte par Puppeteer.
+ * Cache de transmission des données de l'organigramme (nodes/edges/titre)
+ * entre la route d'export PDF et la page /print/[exportId] ouverte par
+ * Puppeteer.
  *
- * ATTENTION : ce cache est en mémoire locale au process. Si votre app
- * tourne sur plusieurs instances serverless, remplacez-le par Redis ou
- * une table Supabase avec expiration (ex: `pdf_export_cache`).
+ * Stocké dans Supabase (table `pdf_exports`, RLS activé sans policy
+ * publique — seule la clé service_role y accède) plutôt qu'en mémoire :
+ * sur Vercel, chaque requête peut atterrir sur une instance serverless
+ * différente, donc un simple Map() en mémoire ne serait pas partagé
+ * entre l'écriture (POST /api/export-pdf) et la lecture (GET
+ * /api/export-cache/[exportId] appelé par la page /print).
  */
 
 type ExportPayload = {
   nodes: unknown[];
   edges: unknown[];
   title: string;
-  createdAt: number;
 };
 
-const CACHE_TTL_MS = 60_000;
-const store = new Map<string, ExportPayload>();
+/** Purge les entrées de plus de 5 minutes, au cas où un export aurait échoué avant sa suppression explicite. */
+async function cleanupExpired() {
+  const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+  await supabaseAdmin.from('pdf_exports').delete().lt('created_at', cutoff);
+}
 
-function cleanupExpired() {
-  const now = Date.now();
-  for (const [key, value] of store.entries()) {
-    if (now - value.createdAt > CACHE_TTL_MS) store.delete(key);
+export async function createExportEntry(nodes: unknown[], edges: unknown[], title: string): Promise<string> {
+  await cleanupExpired();
+
+  const { data, error } = await supabaseAdmin
+    .from('pdf_exports')
+    .insert({ payload: { nodes, edges, title } })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    throw new Error("Impossible de préparer l'export : " + (error?.message || 'erreur inconnue'));
   }
+
+  return data.id as string;
 }
 
-export function createExportEntry(nodes: unknown[], edges: unknown[], title: string): string {
-  cleanupExpired();
-  const id = crypto.randomUUID();
-  store.set(id, { nodes, edges, title, createdAt: Date.now() });
-  return id;
-}
-
-/**
- * Lecture NON destructive : la page /print peut être invoquée plusieurs
- * fois pour le même exportId (double-exécution du useEffect en Strict
- * Mode côté dev, éventuel rechargement réseau de Puppeteer, etc.).
- * L'entrée expire de toute façon via le TTL, et l'id est un UUID aléatoire
- * à durée de vie très courte : la supprimer dès la première lecture
- * n'apporte rien en sécurité et casse les doubles-appels légitimes.
- */
-export function readExportEntry(id: string): ExportPayload | null {
-  cleanupExpired();
-  return store.get(id) ?? null;
+/** Lecture NON destructive : la page /print peut être invoquée plusieurs fois pour le même exportId. */
+export async function readExportEntry(id: string): Promise<ExportPayload | null> {
+  const { data } = await supabaseAdmin.from('pdf_exports').select('payload').eq('id', id).single();
+  return (data?.payload as ExportPayload) ?? null;
 }
 
 /** Suppression explicite, appelée côté serveur une fois la capture Puppeteer terminée. */
-export function deleteExportEntry(id: string): void {
-  store.delete(id);
+export async function deleteExportEntry(id: string): Promise<void> {
+  await supabaseAdmin.from('pdf_exports').delete().eq('id', id);
 }
