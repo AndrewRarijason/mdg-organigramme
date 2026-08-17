@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { PDFDocument } from 'pdf-lib';
 import { createExportEntry, deleteExportEntry } from '@/app/lib/exportCache';
 
@@ -8,8 +9,15 @@ export const maxDuration = 60;
 
 const SCALE = 2;
 
+// En local (dev), @sparticuz/chromium n'a pas de binaire adapté à votre
+// OS : on pointe alors vers votre Chrome/Chromium installé localement.
+// En production sur Vercel, on utilise le binaire fourni par le package.
+const LOCAL_CHROME_PATH =
+  process.env.PUPPETEER_EXECUTABLE_PATH ||
+  'C:\\Users\\Aiky Rarijason\\AppData\\Local\\BraveSoftware\\Brave-Browser\\Application\\brave.exe';
+
 export async function POST(req: NextRequest) {
-  let browser: import('puppeteer').Browser | null = null;
+  let browser: import('puppeteer-core').Browser | null = null;
   let exportId: string | null = null;
 
   try {
@@ -24,9 +32,12 @@ export async function POST(req: NextRequest) {
     const origin = req.nextUrl.origin;
     const printUrl = `${origin}/print/${exportId}`;
 
+    const isVercel = !!process.env.VERCEL;
+
     browser = await puppeteer.launch({
+      args: isVercel ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: isVercel ? await chromium.executablePath() : LOCAL_CHROME_PATH,
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
     });
 
     const page = await browser.newPage();
