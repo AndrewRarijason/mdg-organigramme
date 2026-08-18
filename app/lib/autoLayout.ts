@@ -238,7 +238,7 @@ export function getLayoutedElements(
   layoutedNodes.forEach((node) => {
     const nodeDepth = depths.get(node.id) ?? 0;
     const parents = incomingEdges.get(node.id) || [];
-    if (parents.some((edge) => nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) === 1)) centeredIds.add(node.id);
+    if (nodeDepth === 0 || parents.some((edge) => nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) === 1)) centeredIds.add(node.id);
     const side = (node.data as any)?.layoutSide;
     if (!centeredIds.has(node.id) && (side === 'left' || side === 'right')) sideById.set(node.id, side);
   });
@@ -376,6 +376,7 @@ export function getLayoutedElements(
 
   const bypassExitCountByDepth = new Map<number, number>();
   const bypassEntryCountByDepth = new Map<number, number>();
+  const sharedRoutes = new Map<string, { sourceBranchY: number; targetBranchY: number; bypassX: number }>();
 
   const layoutedEdges = [...edges].sort((a, b) => {
     const sideA = (layoutedNodes.find((node) => node.id === a.target)?.data as any)?.layoutSide;
@@ -394,12 +395,30 @@ export function getLayoutedElements(
 
     const levelSpan = targetDepth - sourceDepth;
     const isBypass = levelSpan > 1;
+    const targetNode = layoutedNodes.find((node) => node.id === edge.target);
+    const requestedSide = (targetNode?.data as any)?.layoutSide as 'left' | 'right' | null;
+    const routingMode = (edge.data as any)?.routingMode;
+    const sharedRouteKey = routingMode === 'shared' ? `${edge.source}:${targetDepth}:${requestedSide ?? 'auto'}` : null;
 
     if (!isBypass) {
       const sourceBranchY = sourceRowBottom + RANK_SEP / 2;
       return {
         ...edge,
         data: { ...(edge.data || {}), branchY: sourceBranchY, bypassX: undefined },
+      };
+    }
+
+    const existingSharedRoute = sharedRouteKey ? sharedRoutes.get(sharedRouteKey) : undefined;
+    if (existingSharedRoute) {
+      return {
+        ...edge,
+        data: {
+          ...(edge.data || {}),
+          branchY: existingSharedRoute.sourceBranchY,
+          sourceBranchY: existingSharedRoute.sourceBranchY,
+          targetBranchY: existingSharedRoute.targetBranchY,
+          bypassX: existingSharedRoute.bypassX,
+        },
       };
     }
 
@@ -418,9 +437,9 @@ export function getLayoutedElements(
     const targetBranchY = targetRowTop - targetGapHalf + targetOffset;
 
     const sourceNode = layoutedNodes.find((n) => n.id === edge.source);
-    const targetNode = layoutedNodes.find((n) => n.id === edge.target);
+    const targetNodeForCenter = targetNode;
     const sourceCenterX = sourceNode ? sourceNode.position.x + getSize(sourceNode).width / 2 : 0;
-    const targetCenterX = targetNode ? targetNode.position.x + getSize(targetNode).width / 2 : 0;
+    const targetCenterX = targetNodeForCenter ? targetNodeForCenter.position.x + getSize(targetNodeForCenter).width / 2 : 0;
     const desiredX = (sourceCenterX + targetCenterX) / 2;
 
     const minDepth = sourceDepth + 1;
@@ -432,7 +451,6 @@ export function getLayoutedElements(
       if (commonGaps.length === 0) break;
     }
 
-    const requestedSide = (targetNode?.data as any)?.layoutSide as 'left' | 'right' | null;
     const innerX =
       !requestedSide && commonGaps && commonGaps.length > 0
         ? pickInnerLaneX(commonGaps, desiredX, minDepth, maxDepthCrossed)
@@ -452,7 +470,7 @@ export function getLayoutedElements(
       }
     }
 
-    return {
+    const routedEdge = {
       ...edge,
       data: {
         ...(edge.data || {}),
@@ -462,6 +480,8 @@ export function getLayoutedElements(
         bypassX,
       },
     };
+    if (sharedRouteKey) sharedRoutes.set(sharedRouteKey, { sourceBranchY, targetBranchY, bypassX });
+    return routedEdge;
   });
 
   return { nodes: layoutedNodes, edges: layoutedEdges };

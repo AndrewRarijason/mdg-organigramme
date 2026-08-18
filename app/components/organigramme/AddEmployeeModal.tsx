@@ -16,6 +16,7 @@ export interface EmployeeFormData {
   parentIds: string[];
   hierarchyLevel: number | null;
   layoutSide?: 'left' | 'right' | null;
+  routingMode?: 'independent' | 'shared';
 }
 
 export function AddEmployeeModal({
@@ -41,6 +42,7 @@ export function AddEmployeeModal({
   const [parentIds, setParentIds] = useState<string[]>([]);
   const [hierarchyLevel, setHierarchyLevel] = useState('');
   const [layoutSide, setLayoutSide] = useState<'left' | 'right' | null>(null);
+  const [routingMode, setRoutingMode] = useState<'independent' | 'shared' | null>(null);
 
   // États pour le recadrage
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export function AddEmployeeModal({
     setCropperOpen(false);
     setHierarchyLevel('');
     setLayoutSide(null);
+    setRoutingMode(null);
   };
 
   const handleClose = () => {
@@ -92,7 +95,7 @@ export function AddEmployeeModal({
     const hasLevelJump = parsedLevel !== null && parentIds.some(
       (id) => parsedLevel > (getHierarchyLevels(existingNodes, existingEdges).get(id) || 1) + 1
     );
-    if (hasLevelJump && !layoutSide) return;
+    if (hasLevelJump && (!layoutSide || !routingMode)) return;
 
     await onSubmit({
       firstName: firstName.trim(),
@@ -102,6 +105,7 @@ export function AddEmployeeModal({
       parentIds,
       hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
       layoutSide: hasLevelJump ? layoutSide : null,
+      routingMode: hasLevelJump ? routingMode : 'independent',
     });
 
     resetForm();
@@ -156,19 +160,6 @@ export function AddEmployeeModal({
                     </div>
                   </div>
                 </div>
-
-                {needsSideChoice && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-xs font-semibold text-amber-900">Saut de niveau détecté : choisissez le côté du nœud et de sa liaison.</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {(['left', 'right'] as const).map((side) => (
-                        <button key={side} type="button" onClick={() => setLayoutSide(side)} className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${layoutSide === side ? 'bg-[#205170] text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
-                          {side === 'left' ? 'Gauche' : 'Droite'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 <motion.button
                   onClick={handleClose}
@@ -287,6 +278,22 @@ export function AddEmployeeModal({
                     emptyMessage="Aucun employé disponible pour le moment"
                   />
                 </div>
+
+                {needsSideChoice && (
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-amber-900">Saut de niveau détecté : définissez le routage du lien.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([['independent', 'Indépendant'], ['shared', 'Partagé']] as const).map(([mode, label]) => (
+                        <button key={mode} type="button" onClick={() => setRoutingMode(mode)} className={`rounded-xl px-3 py-2 text-sm font-semibold ${routingMode === mode ? 'bg-[#205170] text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>{label}</button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['left', 'right'] as const).map((side) => (
+                        <button key={side} type="button" onClick={() => setLayoutSide(side)} className={`rounded-xl px-3 py-2 text-sm font-semibold ${layoutSide === side ? 'bg-[#205170] text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>{side === 'left' ? 'Gauche' : 'Droite'}</button>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 <motion.button
                   type="submit"

@@ -316,18 +316,15 @@ export function useOrganigramme() {
     }
 
     // 1. Reconstruire les edges React Flow à partir de la table Supabase `edges`
-    const loadedEdges: Edge[] = (dbEdges || []).map((item) => {
-      const side = dbNodes?.find((node) => node.id === item.target_id)?.layout_side;
-      return ({
+    const loadedEdges: Edge[] = (dbEdges || []).map((item) => ({
       id: item.id || `e-${item.source_id}-${item.target_id}`,
       source: item.source_id,
       target: item.target_id,
       type: 'orgEdge',
       animated: true,
       interactionWidth: 30,
-      ...(side === 'left' || side === 'right' ? { sourceHandle: `source-${side}`, targetHandle: `target-${side}` } : {}),
-    });
-    });
+      data: { routingMode: item.routing_mode || 'independent' },
+    }));
 
     // 2. Reconstruire les nodes
     const loadedNodes: Node[] = dbNodes.map((item) => ({
@@ -540,6 +537,7 @@ export function useOrganigramme() {
       photoFile: File | null;
       parentIds: string[];
       layoutSide?: 'left' | 'right' | null;
+      routingMode?: 'independent' | 'shared';
       hierarchyLevel?: number | null; // ← AJOUTÉ : niveau 1-indexé, null = automatique
     }) => {
       const newId = crypto.randomUUID();
@@ -587,7 +585,7 @@ export function useOrganigramme() {
         type: 'orgEdge',
         animated: true,
         interactionWidth: 30,
-        ...(formData.layoutSide ? { sourceHandle: `source-${formData.layoutSide}`, targetHandle: `target-${formData.layoutSide}` } : {}),
+        data: { routingMode: formData.routingMode ?? 'independent' },
       }));
 
       // 3. On ajoute temporairement les nouveaux éléments aux listes existantes
@@ -654,6 +652,7 @@ export function useOrganigramme() {
         type: 'orgEdge',
         animated: true,
         interactionWidth: 30,
+        data: { routingMode: (edgesRef.current.find((edge) => edge.source === pId && edge.target === id)?.data as any)?.routingMode ?? 'independent' },
       }));
       const finalEdges = withoutOldEdges.concat(newEdges);
 
@@ -776,6 +775,7 @@ export function useOrganigramme() {
             project_id: projectId,
             source_id: e.source,
             target_id: e.target,
+            routing_mode: (e.data as any)?.routingMode ?? 'independent',
           }));
           const { error: edgeErr } = await supabase.from('edges').insert(payloadEdges);
           if (edgeErr) throw edgeErr;

@@ -310,3 +310,7 @@ ALTER TABLE pdf_exports ENABLE ROW LEVEL SECURITY;
 ------- 18/08 ------
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS hierarchy_level INTEGER;
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS layout_side TEXT CHECK (layout_side IN ('left', 'right'));
+
+-- Mode de routage des sauts d'index : un chemin par enfant ou un tronc partagé.
+ALTER TABLE edges ADD COLUMN IF NOT EXISTS routing_mode TEXT NOT NULL DEFAULT 'independent'
+  CHECK (routing_mode IN ('independent', 'shared'));
