@@ -243,6 +243,13 @@ export function getLayoutedElements(
     if (!centeredIds.has(node.id) && (side === 'left' || side === 'right')) sideById.set(node.id, side);
   });
   const rebalancedX = new Map<string, number>();
+  const indirectParentDepth = (node: Node) => {
+    const nodeDepth = depths.get(node.id) ?? 0;
+    const parentDepths = (incomingEdges.get(node.id) || [])
+      .map((edge) => depths.get(edge.source) ?? 0)
+      .filter((parentDepth) => nodeDepth - parentDepth > 1);
+    return parentDepths.length > 0 ? Math.min(...parentDepths) : Number.MAX_SAFE_INTEGER;
+  };
   nodesByDepthMap.forEach((rowNodes) => {
     const centered = rowNodes.filter((node) => centeredIds.has(node.id)).sort((a, b) => a.position.x - b.position.x);
     const totalWidth = centered.reduce((sum, node) => sum + getSize(node).width, 0) + Math.max(0, centered.length - 1) * NODE_SEP;
@@ -252,8 +259,11 @@ export function getLayoutedElements(
     const centerRight = totalWidth / 2;
     let leftCursor = centerLeft - NODE_SEP;
     let rightCursor = centerRight + NODE_SEP;
-    const left = rowNodes.filter((node) => sideById.get(node.id) === 'left').sort((a, b) => a.position.x - b.position.x);
-    const right = rowNodes.filter((node) => sideById.get(node.id) === 'right').sort((a, b) => a.position.x - b.position.x);
+    // On place d'abord les parents d'index le plus élevé, près du centre :
+    // le parent d'index le plus faible reçoit ainsi la position extérieure.
+    const byOuterPriority = (a: Node, b: Node) => indirectParentDepth(b) - indirectParentDepth(a) || a.position.x - b.position.x;
+    const left = rowNodes.filter((node) => sideById.get(node.id) === 'left').sort(byOuterPriority);
+    const right = rowNodes.filter((node) => sideById.get(node.id) === 'right').sort(byOuterPriority);
     left.forEach((node) => { leftCursor -= getSize(node).width; rebalancedX.set(node.id, Math.round(leftCursor)); leftCursor -= NODE_SEP; });
     right.forEach((node) => { rebalancedX.set(node.id, Math.round(rightCursor)); rightCursor += getSize(node).width + NODE_SEP; });
   });
@@ -383,9 +393,9 @@ export function getLayoutedElements(
     const sideB = (layoutedNodes.find((node) => node.id === b.target)?.data as any)?.layoutSide;
     if (sideA !== sideB) return String(sideA).localeCompare(String(sideB));
     const depthDifference = (depths.get(a.source) ?? 0) - (depths.get(b.source) ?? 0);
-    // À droite, le premier couloir est le plus proche du centre : on traite
-    // donc d'abord les parents les plus bas pour réserver l'extérieur au plus haut.
-    return sideA === 'right' ? -depthDifference : depthDifference;
+    // Le premier couloir est le plus proche du centre. On traite donc les
+    // parents les plus bas d'abord, afin que l'index le plus petit soit extrême.
+    return -depthDifference;
   }).map((edge) => {
     const sourceDepth = depths.get(edge.source) ?? 0;
     const targetDepth = depths.get(edge.target) ?? sourceDepth + 1;
