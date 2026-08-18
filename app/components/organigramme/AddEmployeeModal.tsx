@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserPlus, Upload, Loader2, Crop, Sparkles } from 'lucide-react';
-import type { Node } from '@xyflow/react';
+import type { Edge, Node } from '@xyflow/react';
+import { getHierarchyLevels } from '@/app/lib/hierarchy';
 import { ImageCropperModal } from './ImageCropperModal';
 import { SupervisorSelect } from './SupervisorSelect';
 
@@ -14,18 +15,21 @@ export interface EmployeeFormData {
   photoFile: File | null;
   parentIds: string[];
   hierarchyLevel: number | null;
+  layoutSide?: 'left' | 'right' | null;
 }
 
 export function AddEmployeeModal({
   open,
   onClose,
   existingNodes,
+  existingEdges,
   onSubmit,
   submitting,
 }: {
   open: boolean;
   onClose: () => void;
   existingNodes: Node[];
+  existingEdges: Edge[];
   onSubmit: (data: EmployeeFormData) => Promise<void> | void;
   submitting?: boolean;
 }) {
@@ -36,6 +40,7 @@ export function AddEmployeeModal({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [parentIds, setParentIds] = useState<string[]>([]);
   const [hierarchyLevel, setHierarchyLevel] = useState('');
+  const [layoutSide, setLayoutSide] = useState<'left' | 'right' | null>(null);
 
   // États pour le recadrage
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -51,6 +56,7 @@ export function AddEmployeeModal({
     setRawImageSrc(null);
     setCropperOpen(false);
     setHierarchyLevel('');
+    setLayoutSide(null);
   };
 
   const handleClose = () => {
@@ -83,6 +89,11 @@ export function AddEmployeeModal({
 
     const parsedLevel = hierarchyLevel.trim() === '' ? null : Number(hierarchyLevel);
 
+    const hasLevelJump = parsedLevel !== null && parentIds.some(
+      (id) => parsedLevel > (getHierarchyLevels(existingNodes, existingEdges).get(id) || 1) + 1
+    );
+    if (hasLevelJump && !layoutSide) return;
+
     await onSubmit({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -90,10 +101,17 @@ export function AddEmployeeModal({
       photoFile,
       parentIds,
       hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
+      layoutSide: hasLevelJump ? layoutSide : null,
     });
 
     resetForm();
   };
+
+  const selectedParentLevels = useMemo(() => getHierarchyLevels(existingNodes, existingEdges), [existingNodes, existingEdges]);
+  const requestedLevel = hierarchyLevel.trim() === '' ? null : Number(hierarchyLevel);
+  const needsSideChoice = requestedLevel !== null && requestedLevel >= 1 && parentIds.some(
+    (id) => requestedLevel > (selectedParentLevels.get(id) || 1) + 1
+  );
 
   return (
     <>
@@ -138,6 +156,19 @@ export function AddEmployeeModal({
                     </div>
                   </div>
                 </div>
+
+                {needsSideChoice && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-semibold text-amber-900">Saut de niveau détecté : choisissez le côté du nœud et de sa liaison.</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {(['left', 'right'] as const).map((side) => (
+                        <button key={side} type="button" onClick={() => setLayoutSide(side)} className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${layoutSide === side ? 'bg-[#205170] text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
+                          {side === 'left' ? 'Gauche' : 'Droite'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <motion.button
                   onClick={handleClose}

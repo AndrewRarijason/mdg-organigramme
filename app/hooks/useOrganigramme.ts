@@ -98,12 +98,14 @@ export function useOrganigramme() {
       jobTitle: string;
       photoUrl: string;
       hierarchyLevel?: number | null; // ← AJOUTÉ
+      layoutSide?: 'left' | 'right' | null;
     }) => ({
       lastName: base.lastName || '',
       firstName: base.firstName || '',
       jobTitle: base.jobTitle || '',
       photoUrl: base.photoUrl || '',
       hierarchyLevel: base.hierarchyLevel ?? null, // ← AJOUTÉ : null = placement automatique
+      layoutSide: base.layoutSide ?? null,
       onChange: handleNodeDataChange,
       onPhotoUpload: handlePhotoUpload,
       onDeleteNode: handleDeleteNode,
@@ -314,14 +316,18 @@ export function useOrganigramme() {
     }
 
     // 1. Reconstruire les edges React Flow à partir de la table Supabase `edges`
-    const loadedEdges: Edge[] = (dbEdges || []).map((item) => ({
+    const loadedEdges: Edge[] = (dbEdges || []).map((item) => {
+      const side = dbNodes?.find((node) => node.id === item.target_id)?.layout_side;
+      return ({
       id: item.id || `e-${item.source_id}-${item.target_id}`,
       source: item.source_id,
       target: item.target_id,
       type: 'orgEdge',
       animated: true,
       interactionWidth: 30,
-    }));
+      ...(side === 'left' || side === 'right' ? { sourceHandle: `source-${side}`, targetHandle: `target-${side}` } : {}),
+    });
+    });
 
     // 2. Reconstruire les nodes
     const loadedNodes: Node[] = dbNodes.map((item) => ({
@@ -335,6 +341,7 @@ export function useOrganigramme() {
         jobTitle: item.job_title || '',
         photoUrl: item.photo_url || '',
         hierarchyLevel: item.hierarchy_level ?? null,
+        layoutSide: item.layout_side ?? null,
       }),
     }));
 
@@ -532,6 +539,7 @@ export function useOrganigramme() {
       jobTitle: string;
       photoFile: File | null;
       parentIds: string[];
+      layoutSide?: 'left' | 'right' | null;
       hierarchyLevel?: number | null; // ← AJOUTÉ : niveau 1-indexé, null = automatique
     }) => {
       const newId = crypto.randomUUID();
@@ -566,6 +574,7 @@ export function useOrganigramme() {
           lastName: formData.lastName,
           jobTitle: formData.jobTitle,
           photoUrl,
+          layoutSide: formData.layoutSide ?? null,
           hierarchyLevel: formData.hierarchyLevel ?? null, // ← AJOUTÉ
         }),
       };
@@ -578,6 +587,7 @@ export function useOrganigramme() {
         type: 'orgEdge',
         animated: true,
         interactionWidth: 30,
+        ...(formData.layoutSide ? { sourceHandle: `source-${formData.layoutSide}`, targetHandle: `target-${formData.layoutSide}` } : {}),
       }));
 
       // 3. On ajoute temporairement les nouveaux éléments aux listes existantes
@@ -739,6 +749,7 @@ export function useOrganigramme() {
           position_y: n.position.y,
           width: (n.style?.width as number) || n.measured?.width || 180,
           height: (n.style?.height as number) || n.measured?.height || null,
+          layout_side: (n.data as any).layoutSide ?? null,
           hierarchy_level: (n.data as any).hierarchyLevel ?? null, // <-- AJOUTÉ : persiste le niveau/index
         }));
 

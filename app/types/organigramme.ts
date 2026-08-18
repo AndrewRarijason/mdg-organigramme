@@ -3,6 +3,7 @@ export interface CustomNodeData {
   lastName: string;
   jobTitle: string;
   photoUrl: string;
+  layoutSide?: 'left' | 'right' | null;
   onChange: (id: string, field: string, value: string) => void;
   onPhotoUpload: (id: string, file: File) => void;
   onDeleteNode: (id: string) => void;

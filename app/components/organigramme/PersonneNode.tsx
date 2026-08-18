@@ -101,6 +101,10 @@ export const PersonNode = ({
           className="!w-3 !h-3 md:!w-3.5 md:!h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
         />
       )}
+      <Handle id="target-left" type="target" position={Position.Left} className="!w-3 !h-3 !bg-white !border-2 !border-[#205170]" />
+      <Handle id="source-left" type="source" position={Position.Left} className="!w-3 !h-3 !bg-white !border-2 !border-[#205170]" />
+      <Handle id="target-right" type="target" position={Position.Right} className="!w-3 !h-3 !bg-white !border-2 !border-[#205170]" />
+      <Handle id="source-right" type="source" position={Position.Right} className="!w-3 !h-3 !bg-white !border-2 !border-[#205170]" />
 
       {/* Photo de profil (ou initiales si aucune photo n'a été ajoutée) */}
       <div className="relative mt-1">

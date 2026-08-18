@@ -7,12 +7,22 @@ const NODE_SEP = 60;
 const RANK_SEP = 90;
 const MARGIN_Y = 40;
 
-// Distance entre le bord du diagramme (carte la plus à gauche/droite) et
-// le premier "couloir" de contournement, puis écart entre couloirs
-// successifs si plusieurs liaisons longues doivent coexister sans se
-// chevaucher entre elles.
-const BYPASS_GAP = 60;
-const BYPASS_LANE_SPACING = 24;
+const OUTER_BYPASS_GAP = 60;
+const OUTER_BYPASS_LANE_SPACING = 24;
+
+const INNER_GAP_MARGIN = 14;
+const MIN_INNER_GAP_WIDTH = 28;
+const MIN_LANE_SEPARATION = 18;
+
+// Largeur maximale d'un couloir "de bord" (juste à gauche de la première
+// carte, ou juste à droite de la dernière carte, d'une rangée) — permet
+// à une liaison en contournement de se glisser tout près d'une rangée
+// qui n'a qu'une seule carte (donc aucun "espace entre deux cartes"),
+// au lieu de retomber sur le couloir extérieur, loin de tout le diagramme.
+const EDGE_LANE_WIDTH = NODE_SEP * 3;
+
+const BYPASS_Y_BASE_OFFSET = 16;
+const BYPASS_Y_STEP = 8;
 
 const getSize = (node: Node) => {
   const width =
@@ -98,6 +108,23 @@ function computeDepths(nodes: Node[], edges: Edge[]): Map<string, number> {
   return depths;
 }
 
+type Interval = [number, number];
+
+/** Intersection de deux listes d'intervalles disjoints (triés). */
+function intersectIntervals(a: Interval[], b: Interval[]): Interval[] {
+  const result: Interval[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const start = Math.max(a[i][0], b[j][0]);
+    const end = Math.min(a[i][1], b[j][1]);
+    if (start < end) result.push([start, end]);
+    if (a[i][1] < b[j][1]) i++;
+    else j++;
+  }
+  return result;
+}
+
 export function getLayoutedElements(
   nodes: Node[],
   edges: Edge[],
@@ -105,12 +132,9 @@ export function getLayoutedElements(
 ): { nodes: Node[]; edges: Edge[] } {
   if (nodes.length === 0) return { nodes, edges };
 
-  // --- 1) Profondeur "logique" calculée EN PREMIER, pour pouvoir la
-  //     communiquer à dagre via `minlen` ---
   const depths = computeDepths(nodes, edges);
   const maxDepth = nodes.length > 0 ? Math.max(...Array.from(depths.values())) : 0;
 
-  // --- 2) X via dagre ---
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
   graph.setGraph({
@@ -137,7 +161,6 @@ export function getLayoutedElements(
 
   dagre.layout(graph);
 
-  // --- 3) Regroupement par profondeur ---
   const nodesByDepth = new Map<number, Node[]>();
   nodes.forEach((n) => {
     const d = depths.get(n.id) ?? 0;
@@ -145,7 +168,6 @@ export function getLayoutedElements(
     nodesByDepth.get(d)!.push(n);
   });
 
-  // --- 4) Y unifié par rangée ---
   const rowTop = new Map<number, number>();
   const rowHeight = new Map<number, number>();
   let cumulativeY = MARGIN_Y;
@@ -172,7 +194,6 @@ export function getLayoutedElements(
     };
   });
 
-  // --- 4b) Résolution Anti-chevauchement Horizontal par Niveau ---
   const nodesByDepthMap = new Map<number, Node[]>();
   layoutedNodes.forEach((node) => {
     const d = depths.get(node.id) ?? 0;
@@ -183,10 +204,8 @@ export function getLayoutedElements(
   const adjustedXMap = new Map<string, number>();
 
   nodesByDepthMap.forEach((rowNodes) => {
-    // Trier les cartes de la ligne de gauche à droite selon leur position X initiale
     rowNodes.sort((a, b) => a.position.x - b.position.x);
 
-    // Repousser toute carte qui chevauche sa voisine de gauche
     for (let i = 0; i < rowNodes.length; i++) {
       const curr = rowNodes[i];
       if (i === 0) {
@@ -202,16 +221,44 @@ export function getLayoutedElements(
     }
   });
 
-  // Appliquer les coordonnées X corrigées
   layoutedNodes = layoutedNodes.map((node) => {
     const newX = adjustedXMap.get(node.id);
     return newX !== undefined ? { ...node, position: { ...node.position, x: newX } } : node;
   });
-  
-  // --- 5) Bornes globales du diagramme (toutes cartes confondues) : les
-  //     couloirs de contournement sont placés en dehors de ces bornes,
-  //     donc garantis de ne croiser AUCUNE carte, quel que soit son
-  //     niveau. ---
+
+  // Les enfants directs restent centrés. Les cibles d'un saut de niveau sont
+  // volontairement repoussées dans une colonne gauche/droite dédiée.
+  const incomingEdges = new Map<string, Edge[]>();
+  edges.forEach((edge) => {
+    if (!incomingEdges.has(edge.target)) incomingEdges.set(edge.target, []);
+    incomingEdges.get(edge.target)!.push(edge);
+  });
+  const centeredIds = new Set<string>();
+  const sideById = new Map<string, 'left' | 'right'>();
+  layoutedNodes.forEach((node) => {
+    const nodeDepth = depths.get(node.id) ?? 0;
+    const parents = incomingEdges.get(node.id) || [];
+    if (parents.some((edge) => nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) === 1)) centeredIds.add(node.id);
+    const side = (node.data as any)?.layoutSide;
+    if (!centeredIds.has(node.id) && (side === 'left' || side === 'right')) sideById.set(node.id, side);
+  });
+  const rebalancedX = new Map<string, number>();
+  nodesByDepthMap.forEach((rowNodes) => {
+    const centered = rowNodes.filter((node) => centeredIds.has(node.id)).sort((a, b) => a.position.x - b.position.x);
+    const totalWidth = centered.reduce((sum, node) => sum + getSize(node).width, 0) + Math.max(0, centered.length - 1) * NODE_SEP;
+    let cursor = -totalWidth / 2;
+    centered.forEach((node) => { rebalancedX.set(node.id, Math.round(cursor)); cursor += getSize(node).width + NODE_SEP; });
+    const centerLeft = -totalWidth / 2;
+    const centerRight = totalWidth / 2;
+    let leftCursor = centerLeft - NODE_SEP;
+    let rightCursor = centerRight + NODE_SEP;
+    const left = rowNodes.filter((node) => sideById.get(node.id) === 'left').sort((a, b) => a.position.x - b.position.x);
+    const right = rowNodes.filter((node) => sideById.get(node.id) === 'right').sort((a, b) => a.position.x - b.position.x);
+    left.forEach((node) => { leftCursor -= getSize(node).width; rebalancedX.set(node.id, Math.round(leftCursor)); leftCursor -= NODE_SEP; });
+    right.forEach((node) => { rebalancedX.set(node.id, Math.round(rightCursor)); rightCursor += getSize(node).width + NODE_SEP; });
+  });
+  layoutedNodes = layoutedNodes.map((node) => rebalancedX.has(node.id) ? { ...node, position: { ...node.position, x: rebalancedX.get(node.id)! } } : node);
+
   let globalMinX = Infinity;
   let globalMaxX = -Infinity;
   layoutedNodes.forEach((n) => {
@@ -224,43 +271,185 @@ export function getLayoutedElements(
     globalMaxX = 0;
   }
 
-  // --- 6) Liaisons "longues" (qui sautent au moins un niveau intermédiaire) :
-  //     on leur assigne un couloir vertical dédié, hors de la zone
-  //     occupée par toutes les cartes, en alternant gauche/droite pour
-  //     que plusieurs liaisons longues ne se chevauchent pas entre elles. ---
-  let leftLaneCount = 0;
-  let rightLaneCount = 0;
+  const spansByDepth = new Map<number, { minX: number; maxX: number }[]>();
+  layoutedNodes.forEach((n) => {
+    const d = depths.get(n.id) ?? 0;
+    const { width } = getSize(n);
+    if (!spansByDepth.has(d)) spansByDepth.set(d, []);
+    spansByDepth.get(d)!.push({ minX: n.position.x, maxX: n.position.x + width });
+  });
+  spansByDepth.forEach((spans) => spans.sort((a, b) => a.minX - b.minX));
 
-  const layoutedEdges = edges.map((edge) => {
+  /**
+   * Espaces exploitables pour un couloir interne à une profondeur donnée :
+   * - entre deux cartes consécutives (comme avant) ;
+   * - AJOUTÉ : juste à gauche de la première carte, et juste à droite de
+   *   la dernière carte de la rangée (bornés à EDGE_LANE_WIDTH). Sans ça,
+   *   une rangée qui ne contient qu'UNE SEULE carte (ex: la rangée de C
+   *   dans B→F/G) n'offrait aucun "espace entre deux cartes", et le
+   *   contournement retombait sur le couloir extérieur — loin de tout le
+   *   diagramme — au lieu de simplement longer cette carte unique.
+   */
+  function getInnerGapsForDepth(depth: number): Interval[] {
+    const spans = spansByDepth.get(depth) || [];
+    if (spans.length === 0) return [];
+
+    const gaps: Interval[] = [];
+
+    // Bord gauche de la rangée
+    const leftEnd = spans[0].minX - INNER_GAP_MARGIN;
+    const leftStart = leftEnd - EDGE_LANE_WIDTH;
+    if (leftEnd - leftStart >= MIN_INNER_GAP_WIDTH) gaps.push([leftStart, leftEnd]);
+
+    // Espaces entre cartes consécutives (comportement existant)
+    for (let i = 0; i < spans.length - 1; i++) {
+      const start = spans[i].maxX + INNER_GAP_MARGIN;
+      const end = spans[i + 1].minX - INNER_GAP_MARGIN;
+      if (end - start >= MIN_INNER_GAP_WIDTH) gaps.push([start, end]);
+    }
+
+    // Bord droit de la rangée
+    const rightStart = spans[spans.length - 1].maxX + INNER_GAP_MARGIN;
+    const rightEnd = rightStart + EDGE_LANE_WIDTH;
+    if (rightEnd - rightStart >= MIN_INNER_GAP_WIDTH) gaps.push([rightStart, rightEnd]);
+
+    return gaps;
+  }
+
+  let outerLeftLaneCount = 0;
+  let outerRightLaneCount = 0;
+
+  const usedInnerLanes: { x: number; minDepth: number; maxDepth: number }[] = [];
+
+  function pickInnerLaneX(
+    commonGaps: Interval[],
+    desiredX: number,
+    minDepth: number,
+    maxDepth: number
+  ): number | null {
+    let best: Interval | null = null;
+    let bestDist = Infinity;
+    for (const gap of commonGaps) {
+      const clamped = Math.min(Math.max(desiredX, gap[0]), gap[1]);
+      const dist = Math.abs(clamped - desiredX);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = gap;
+      }
+    }
+    if (!best) return null;
+
+    let candidate = Math.min(Math.max(desiredX, best[0]), best[1]);
+
+    const conflicts = () =>
+      usedInnerLanes.some(
+        (lane) =>
+          lane.minDepth <= maxDepth &&
+          lane.maxDepth >= minDepth &&
+          Math.abs(lane.x - candidate) < MIN_LANE_SEPARATION
+      );
+
+    if (conflicts()) {
+      const tryRight = candidate + MIN_LANE_SEPARATION;
+      const tryLeft = candidate - MIN_LANE_SEPARATION;
+      if (
+        tryRight <= best[1] &&
+        !usedInnerLanes.some(
+          (lane) => lane.minDepth <= maxDepth && lane.maxDepth >= minDepth && Math.abs(lane.x - tryRight) < MIN_LANE_SEPARATION
+        )
+      ) {
+        candidate = tryRight;
+      } else if (
+        tryLeft >= best[0] &&
+        !usedInnerLanes.some(
+          (lane) => lane.minDepth <= maxDepth && lane.maxDepth >= minDepth && Math.abs(lane.x - tryLeft) < MIN_LANE_SEPARATION
+        )
+      ) {
+        candidate = tryLeft;
+      } else {
+        return null;
+      }
+    }
+
+    return candidate;
+  }
+
+  const bypassExitCountByDepth = new Map<number, number>();
+  const bypassEntryCountByDepth = new Map<number, number>();
+
+  const layoutedEdges = [...edges].sort((a, b) => {
+    const sideA = (layoutedNodes.find((node) => node.id === a.target)?.data as any)?.layoutSide;
+    const sideB = (layoutedNodes.find((node) => node.id === b.target)?.data as any)?.layoutSide;
+    if (sideA !== sideB) return String(sideA).localeCompare(String(sideB));
+    const depthDifference = (depths.get(a.source) ?? 0) - (depths.get(b.source) ?? 0);
+    // À droite, le premier couloir est le plus proche du centre : on traite
+    // donc d'abord les parents les plus bas pour réserver l'extérieur au plus haut.
+    return sideA === 'right' ? -depthDifference : depthDifference;
+  }).map((edge) => {
     const sourceDepth = depths.get(edge.source) ?? 0;
     const targetDepth = depths.get(edge.target) ?? sourceDepth + 1;
 
-    // Y de branchement juste sous la rangée du parent
     const sourceRowBottom = (rowTop.get(sourceDepth) ?? 0) + (rowHeight.get(sourceDepth) ?? DEFAULT_NODE_HEIGHT);
-    const sourceBranchY = sourceRowBottom + RANK_SEP / 2;
-
-    // Y de branchement juste au-dessus de la rangée de l'enfant
     const targetRowTop = rowTop.get(targetDepth) ?? sourceRowBottom + RANK_SEP;
-    const targetBranchY = targetRowTop - RANK_SEP / 2;
 
     const levelSpan = targetDepth - sourceDepth;
     const isBypass = levelSpan > 1;
 
     if (!isBypass) {
+      const sourceBranchY = sourceRowBottom + RANK_SEP / 2;
       return {
         ...edge,
         data: { ...(edge.data || {}), branchY: sourceBranchY, bypassX: undefined },
       };
     }
 
-    // Alterne les couloirs à gauche et à droite hors des bornes de toutes les cartes
+    const exitIndex = bypassExitCountByDepth.get(sourceDepth) ?? 0;
+    bypassExitCountByDepth.set(sourceDepth, exitIndex + 1);
+    const entryIndex = bypassEntryCountByDepth.get(targetDepth) ?? 0;
+    bypassEntryCountByDepth.set(targetDepth, entryIndex + 1);
+
+    const sourceGapHalf = RANK_SEP / 2;
+    const targetGapHalf = RANK_SEP / 2;
+
+    const sourceOffset = Math.min(sourceGapHalf - 6, BYPASS_Y_BASE_OFFSET + exitIndex * BYPASS_Y_STEP);
+    const targetOffset = Math.min(targetGapHalf - 6, BYPASS_Y_BASE_OFFSET + entryIndex * BYPASS_Y_STEP);
+
+    const sourceBranchY = sourceRowBottom + sourceGapHalf - sourceOffset;
+    const targetBranchY = targetRowTop - targetGapHalf + targetOffset;
+
+    const sourceNode = layoutedNodes.find((n) => n.id === edge.source);
+    const targetNode = layoutedNodes.find((n) => n.id === edge.target);
+    const sourceCenterX = sourceNode ? sourceNode.position.x + getSize(sourceNode).width / 2 : 0;
+    const targetCenterX = targetNode ? targetNode.position.x + getSize(targetNode).width / 2 : 0;
+    const desiredX = (sourceCenterX + targetCenterX) / 2;
+
+    const minDepth = sourceDepth + 1;
+    const maxDepthCrossed = targetDepth - 1;
+    let commonGaps: Interval[] | null = null;
+    for (let d = minDepth; d <= maxDepthCrossed; d++) {
+      const gaps = getInnerGapsForDepth(d);
+      commonGaps = commonGaps === null ? gaps : intersectIntervals(commonGaps, gaps);
+      if (commonGaps.length === 0) break;
+    }
+
+    const requestedSide = (targetNode?.data as any)?.layoutSide as 'left' | 'right' | null;
+    const innerX =
+      !requestedSide && commonGaps && commonGaps.length > 0
+        ? pickInnerLaneX(commonGaps, desiredX, minDepth, maxDepthCrossed)
+        : null;
+
     let bypassX: number;
-    if (leftLaneCount <= rightLaneCount) {
-      bypassX = globalMinX - BYPASS_GAP - leftLaneCount * BYPASS_LANE_SPACING;
-      leftLaneCount += 1;
+    if (innerX !== null) {
+      bypassX = innerX;
+      usedInnerLanes.push({ x: innerX, minDepth, maxDepth: maxDepthCrossed });
     } else {
-      bypassX = globalMaxX + BYPASS_GAP + rightLaneCount * BYPASS_LANE_SPACING;
-      rightLaneCount += 1;
+      if (requestedSide === 'left' || (!requestedSide && outerLeftLaneCount <= outerRightLaneCount)) {
+        bypassX = globalMinX - OUTER_BYPASS_GAP - outerLeftLaneCount * OUTER_BYPASS_LANE_SPACING;
+        outerLeftLaneCount += 1;
+      } else {
+        bypassX = globalMaxX + OUTER_BYPASS_GAP + outerRightLaneCount * OUTER_BYPASS_LANE_SPACING;
+        outerRightLaneCount += 1;
+      }
     }
 
     return {

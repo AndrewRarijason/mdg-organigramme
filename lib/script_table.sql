@@ -309,3 +309,4 @@ ALTER TABLE pdf_exports ENABLE ROW LEVEL SECURITY;
 
 ------- 18/08 ------
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS hierarchy_level INTEGER;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS layout_side TEXT CHECK (layout_side IN ('left', 'right'));

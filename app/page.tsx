@@ -280,6 +280,7 @@ export default function OrganigrammePage() {
         open={addEmployeeOpen}
         onClose={() => setAddEmployeeOpen(false)}
         existingNodes={organigramme.nodes}
+        existingEdges={organigramme.edges}
         onSubmit={handleAddEmployee}
         submitting={submittingEmployee}
       />
