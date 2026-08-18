@@ -3,35 +3,6 @@
 import React from 'react';
 import { BaseEdge, EdgeProps } from '@xyflow/react';
 
-/**
- * Dessine une liaison en "T" façon organigramme classique : un segment
- * vertical depuis la carte parent jusqu'à une ligne de branchement
- * horizontale commune (`data.branchY`, calculée par getLayoutedElements
- * pour être identique à TOUTES les liaisons entre deux niveaux
- * adjacents), puis un segment vertical jusqu'à la carte enfant.
- *
- * Deux raffinements visuels pour un rendu plus professionnel :
- * - les coins du "T" sont légèrement arrondis (CORNER_RADIUS), comme
- *   dans les logiciels d'organigramme classiques, plutôt que des angles
- *   droits ;
- * - un petit point plein marque le point d'attache sur la carte enfant,
- *   utile pour repérer d'un coup d'œil où une branche se termine quand
- *   plusieurs liaisons convergent au même niveau.
- *
- * Deux précautions pour éviter une "coupure" visible près des points de
- * connexion lors de la capture (export PDF via domToPng) :
- * - toutes les coordonnées sont arrondies à l'entier (les valeurs
- *   sub-pixel produisent des micro-décalages qui deviennent visibles une
- *   fois rastérisés à scale=2) ;
- * - le trait déborde très légèrement (OVERLAP) dans la carte à chaque
- *   extrémité, pour garantir qu'il touche bien le point de connexion
- *   même en cas d'arrondi.
- *
- * La couleur des liaisons est pilotée par le CSS global
- * (.react-flow__edge-path dans page.tsx) pour rester synchronisée avec
- * les états hover/sélection ; seul le point d'attache est coloré ici
- * directement, car il n'est pas couvert par cette règle CSS.
- */
 const OVERLAP = 2;
 const CORNER_RADIUS = 10;
 const THEME_COLOR = '#205170';
@@ -39,13 +10,9 @@ const DANGER_COLOR = '#e11d48';
 
 function buildOrgPath(sx: number, sy: number, tx: number, ty: number, by: number, radius: number): string {
   const dir = tx === sx ? 0 : tx > sx ? 1 : -1;
-
-  // Pas de branchement horizontal (enfant directement sous le parent) :
-  // une simple ligne verticale suffit, pas besoin de coins.
   if (dir === 0) {
     return `M ${sx},${sy} L ${sx},${ty}`;
   }
-
   const r = Math.round(
     Math.max(0, Math.min(radius, Math.abs(tx - sx) / 2, Math.abs(by - sy), Math.abs(ty - by)))
   );
@@ -60,25 +27,65 @@ function buildOrgPath(sx: number, sy: number, tx: number, ty: number, by: number
   ].join(' ');
 }
 
-export function OrgEdge({
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  data,
-  style,
-  markerEnd,
-  selected,
-}: EdgeProps) {
-  const branchY = (data?.branchY as number | undefined) ?? sourceY + (targetY - sourceY) / 2;
+// Trace le contournement par les côtés
+function buildBypassPath(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  sby: number,
+  tby: number,
+  bx: number,
+  radius: number
+): string {
+  const dirS = bx === sx ? 0 : bx > sx ? 1 : -1;
+  const dirT = tx === bx ? 0 : tx > bx ? 1 : -1;
 
+  const r = Math.round(
+    Math.max(
+      0,
+      Math.min(
+        radius,
+        Math.abs(bx - sx) / 2,
+        Math.abs(tx - bx) / 2,
+        Math.abs(sby - sy),
+        Math.abs(tby - sby) / 2,
+        Math.abs(ty - tby)
+      )
+    )
+  );
+
+  return [
+    `M ${sx},${sy}`,
+    `L ${sx},${sby - r}`,
+    `Q ${sx},${sby} ${sx + r * dirS},${sby}`,
+    `L ${bx - r * dirS},${sby}`,
+    `Q ${bx},${sby} ${bx},${sby + r}`,
+    `L ${bx},${tby - r}`,
+    `Q ${bx},${tby} ${bx + r * dirT},${tby}`,
+    `L ${tx - r * dirT},${tby}`,
+    `Q ${tx},${tby} ${tx},${tby + r}`,
+    `L ${tx},${ty}`,
+  ].join(' ');
+}
+
+export function OrgEdge({ sourceX, sourceY, targetX, targetY, data, style, markerEnd, selected }: EdgeProps) {
   const sx = Math.round(sourceX);
   const sy = Math.round(sourceY) - OVERLAP;
   const tx = Math.round(targetX);
   const ty = Math.round(targetY) + OVERLAP;
-  const by = Math.round(branchY);
 
-  const path = buildOrgPath(sx, sy, tx, ty, by, CORNER_RADIUS);
+  const bypassX = data?.bypassX as number | undefined;
+  const sourceBranchY = (data?.sourceBranchY as number | undefined) ?? (data?.branchY as number | undefined) ?? (sourceY + (targetY - sourceY) / 2);
+  const targetBranchY = (data?.targetBranchY as number | undefined) ?? sourceBranchY;
+
+  const sby = Math.round(sourceBranchY);
+  const tby = Math.round(targetBranchY);
+
+  const path =
+    bypassX !== undefined
+      ? buildBypassPath(sx, sy, tx, ty, sby, tby, Math.round(bypassX), CORNER_RADIUS)
+      : buildOrgPath(sx, sy, tx, ty, sby, CORNER_RADIUS);
 
   return (
     <>

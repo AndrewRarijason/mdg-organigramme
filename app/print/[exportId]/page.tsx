@@ -10,7 +10,8 @@ import { edgeTypes } from '@/app/components/organigramme/OrgEdge';
 import { ExportModeProvider } from '@/app/lib/exportMode';
 
 const MARGIN = 40;
-const HEADER_HEIGHT = 64; // hauteur réservée au bandeau logo + titre
+const HEADER_HEIGHT = 56;
+const LOGO_SECTION_HEIGHT = 56; // Hauteur dédiée uniquement au logo
 
 function noop() { }
 
@@ -29,7 +30,7 @@ function hydrateNodes(rawNodes: any[]): Node[] {
     }));
 }
 
-function computeBounds(nodes: Node[]) {
+function computeBounds(nodes: Node[], edges: Edge[]) {
     if (nodes.length === 0) return { minX: 0, minY: 0, width: 800, height: 600 };
 
     let minX = Infinity;
@@ -44,6 +45,14 @@ function computeBounds(nodes: Node[]) {
         minY = Math.min(minY, n.position.y);
         maxX = Math.max(maxX, n.position.x + width);
         maxY = Math.max(maxY, n.position.y + height);
+    });
+
+    edges.forEach((e) => {
+        const bypassX = e.data?.bypassX as number | undefined;
+        if (typeof bypassX === 'number' && !isNaN(bypassX)) {
+            minX = Math.min(minX, bypassX);
+            maxX = Math.max(maxX, bypassX);
+        }
     });
 
     return {
@@ -81,7 +90,10 @@ export default function PrintPage() {
         document.fonts.ready.then(() => setFontsReady(true));
     }, []);
 
-    const bounds = useMemo(() => (nodes ? computeBounds(nodes) : null), [nodes]);
+    const bounds = useMemo(
+        () => (nodes && edges ? computeBounds(nodes, edges) : null),
+        [nodes, edges]
+    );
 
     useEffect(() => {
         if (!nodes) return;
@@ -116,22 +128,40 @@ export default function PrintPage() {
 
     return (
         <div
-            // Le container fait EXACTEMENT la taille du diagramme + un bandeau
-            // d'en-tête (logo + titre), pour un rendu fidèle à l'app.
-            style={{ width: bounds.width, height: bounds.height + HEADER_HEIGHT, background: '#ffffff' }}
+            style={{
+                width: bounds.width,
+                height: bounds.height + HEADER_HEIGHT + LOGO_SECTION_HEIGHT,
+                background: '#ffffff',
+            }}
             data-export-ready={ready ? 'true' : 'false'}
         >
-            {/* Bandeau logo + titre, calqué sur l'en-tête du canevas dans page.tsx */}
+            {/* 1. En-tête : Titre du projet centré */}
             <div
                 style={{
                     height: HEADER_HEIGHT,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    position: 'relative',
-                    gap: 12,
                     padding: '0 24px',
                     borderBottom: '1px solid #e2e8f0',
+                    boxSizing: 'border-box',
+                }}
+            >
+                {title && (
+                    <span style={{ fontSize: 18, fontWeight: 700, color: '#205170', fontFamily: 'inherit' }}>
+                        {title}
+                    </span>
+                )}
+            </div>
+
+            {/* 2. Ligne dédiée au logo (place le logo avant le contenu) */}
+            <div
+                style={{
+                    height: LOGO_SECTION_HEIGHT,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 24px',
+                    boxSizing: 'border-box',
                 }}
             >
                 <img
@@ -140,18 +170,12 @@ export default function PrintPage() {
                     style={{
                         height: 36,
                         width: 'auto',
-                        position: 'absolute',
-                        left: 24,
                     }}
                 />
-                {title && (
-                    <span style={{ fontSize: 18, fontWeight: 700, color: '#205170', fontFamily: 'inherit' }}>
-                        {title}
-                    </span>
-                )}
             </div>
 
-            <div style={{ width: bounds.width, height: bounds.height }}>
+            {/* 3. Zone Canvas : L'organigramme débute sous la ligne du logo */}
+            <div style={{ width: bounds.width, height: bounds.height, position: 'relative' }}>
                 <ExportModeProvider exporting>
                     <ReactFlowProvider>
                         <ReactFlow

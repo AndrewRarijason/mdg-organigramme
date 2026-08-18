@@ -13,6 +13,7 @@ export interface EmployeeFormData {
   jobTitle: string;
   photoFile: File | null;
   parentIds: string[];
+  hierarchyLevel: number | null;
 }
 
 export function AddEmployeeModal({
@@ -34,6 +35,7 @@ export function AddEmployeeModal({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [parentIds, setParentIds] = useState<string[]>([]);
+  const [hierarchyLevel, setHierarchyLevel] = useState('');
 
   // États pour le recadrage
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function AddEmployeeModal({
     setParentIds([]);
     setRawImageSrc(null);
     setCropperOpen(false);
+    setHierarchyLevel('');
   };
 
   const handleClose = () => {
@@ -78,12 +81,15 @@ export function AddEmployeeModal({
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim()) return;
 
+    const parsedLevel = hierarchyLevel.trim() === '' ? null : Number(hierarchyLevel);
+
     await onSubmit({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       jobTitle: jobTitle.trim(),
       photoFile,
       parentIds,
+      hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
     });
 
     resetForm();
@@ -215,6 +221,24 @@ export function AddEmployeeModal({
                     className="w-full px-3.5 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] md:text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all bg-slate-50/50 focus:bg-white"
                     placeholder="Responsable Marketing"
                   />
+                </div>
+
+                {/* Niveau hiérarchique (optionnel) */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-800 mb-1 block">
+                    Niveau hiérarchique <span className="font-normal text-slate-400">(optionnel)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={hierarchyLevel}
+                    onChange={(e) => setHierarchyLevel(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] md:text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all bg-slate-50/50 focus:bg-white"
+                    placeholder="Laisser vide pour un placement automatique"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    1 = sommet de l'organigramme. Si vide, la personne se place juste sous son supérieur.
+                  </p>
                 </div>
 
                 {/* Supérieur hiérarchique */}

@@ -15,7 +15,14 @@ import {
   CheckCircle2,
   Sparkles,
   Users,
+  Network,
+  ChevronDown,
 } from 'lucide-react';
+
+const BRAND = '#205170';
+const BRAND_DARK = '#123549';
+const BRAND_DARKER = '#0c2532';
+const BRAND_LIGHT = '#2d6d94';
 
 export function Toolbar({
   projectTitle,
@@ -80,138 +87,163 @@ export function Toolbar({
 
   return (
     <motion.header
-      className="p-3 sm:p-4 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs flex items-center justify-between sticky top-0 z-30 transition-all gap-2"
+      className="relative flex items-center justify-between gap-2 px-3 py-2.5 sm:px-5 sm:py-3 border-b border-black/10 shadow-[0_2px_10px_-2px_rgba(12,37,50,0.35)] sticky top-0 z-30 backdrop-blur-xl"
+      style={{ background: `linear-gradient(115deg, ${BRAND_DARKER} 0%, ${BRAND_DARK} 42%, ${BRAND} 100%)` }}
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Zone Gauche : Titre & Liste des Employés */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+      {/* Liséré lumineux en bas de la barre */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-[2px] opacity-70"
+        style={{ background: `linear-gradient(90deg, ${BRAND_LIGHT} 0%, rgba(255,255,255,0.5) 50%, transparent 100%)` }}
+      />
+
+      {/* ===== Zone Gauche : Identité du projet ===== */}
+      <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0 min-w-0">
+        {/* Marque / logo miniature */}
+        <div className="hidden sm:flex w-9 h-9 rounded-xl items-center justify-center shrink-0 bg-white/10 border border-white/15 shadow-inner">
+          <Network className="w-4.5 h-4.5 text-white" />
+        </div>
+
+        <div className="flex flex-col min-w-0">
+          <div className="relative flex items-center min-w-0 group">
+            <input
+              type="text"
+              value={projectTitle}
+              onChange={(e) => onProjectTitleChange(e.target.value)}
+              placeholder="Nom du projet"
+              className="text-sm sm:text-base font-bold text-white placeholder-white/40 bg-transparent px-1 py-0.5 -mx-1 rounded-lg border-b-2 border-transparent hover:border-white/25 focus:border-white/70 focus:bg-white/10 focus:outline-none transition-all duration-200 w-[180px] sm:w-[220px] lg:w-[280px] truncate"
+            />
+          </div>
+          <span className="hidden sm:block text-[11px] text-white/50 font-medium px-1 -mt-0.5">
+            Organigramme
+          </span>
+        </div>
+
+        <div className="h-8 w-px bg-white/15 hidden md:block" />
+
         <motion.button
           onClick={onOpenEmployeeList}
-          className="p-2 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200/80 active:bg-slate-200 text-slate-700 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer border border-slate-200 shadow-xs"
+          className="hidden md:flex px-3 py-2 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white/90 hover:text-white rounded-xl text-xs font-semibold transition-all items-center gap-1.5 cursor-pointer border border-white/15"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
           title="Voir les employés"
         >
-          <Users className="w-4 h-4 text-indigo-600" />
-          <span className="hidden lg:inline">Employés</span>
+          <Users className="w-3.5 h-3.5" />
+          <span>Employés</span>
         </motion.button>
-
-        <div className="h-5 w-[1px] bg-slate-200 hidden sm:block" />
-
-        <div className="relative flex items-center min-w-0">
-          <input
-            type="text"
-            value={projectTitle}
-            onChange={(e) => onProjectTitleChange(e.target.value)}
-            placeholder="Nom du projet"
-            className="text-[13px] sm:text-sm font-bold text-slate-800 placeholder-slate-400 bg-transparent px-1 sm:px-2 py-1 rounded-lg border-b-2 border-transparent hover:border-slate-300 focus:border-blue-600 focus:bg-slate-50 focus:outline-none transition-all duration-200 w-[180px] lg:min-w-[300px] truncate"
-          />
-        </div>
       </div>
 
-      {/* Zone Droite : Outils & Actions */}
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Status de Sauvegarde Automatique */}
-        {(autoSaving || lastAutoSavedAt) && (
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100/80 border border-slate-200/80 text-xs text-slate-600 font-medium">
-            {autoSaving ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                <span>Sauvegarde...</span>
-              </>
-            ) : (
-              lastAutoSavedAt && (
+      {/* ===== Zone Droite : Statuts & Actions ===== */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        {/* Statut de sauvegarde automatique */}
+        <AnimatePresence mode="wait">
+          {(autoSaving || lastAutoSavedAt) && (
+            <motion.div
+              key={autoSaving ? 'saving' : 'saved'}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className={`hidden lg:flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full border text-[11px] font-semibold ${
+                autoSaving
+                  ? 'bg-sky-400/15 border-sky-300/25 text-sky-100'
+                  : 'bg-emerald-400/15 border-emerald-300/25 text-emerald-100'
+              }`}
+            >
+              {autoSaving ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>
-                    Sauvegardé à{' '}
-                    {lastAutoSavedAt.toLocaleTimeString('fr-FR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Sauvegarde...</span>
                 </>
-              )
-            )}
-          </div>
-        )}
+              ) : (
+                lastAutoSavedAt && (
+                  <>
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>
+                      Dernière sauvegarde : {lastAutoSavedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </>
+                )
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Progrès d'export PDF */}
         {exportingPdf && (
-          <div className="min-w-[100px] sm:min-w-[200px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-blue-200 bg-slate-50 shadow-xs">
-            <div className="text-[10px] sm:text-[11px] font-semibold text-blue-900 mb-0.5 sm:mb-1 flex items-center justify-between">
+          <div className="min-w-[110px] sm:min-w-[180px] px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/20 bg-white/10">
+            <div className="text-[10px] font-bold mb-1 flex items-center justify-between text-white/90">
               <span className="flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
-                <span className="hidden sm:inline">Export PDF...</span>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="hidden sm:inline">Export PDF</span>
                 <span className="sm:hidden">PDF</span>
               </span>
               <span>{Math.round(exportPdfProgress)}%</span>
             </div>
-            <div className="h-1 sm:h-1.5 bg-blue-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-200"
-                style={{ width: `${exportPdfProgress}%` }}
+            <div className="h-1 bg-white/15 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-white"
+                animate={{ width: `${exportPdfProgress}%` }}
+                transition={{ duration: 0.2 }}
               />
             </div>
           </div>
         )}
 
         {/* Groupe Undo / Redo */}
-        <div className="flex items-center p-0.5 sm:p-1 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 shadow-xs">
+        <div className="flex items-center p-0.5 rounded-xl bg-white/10 border border-white/15">
           <motion.button
             onClick={onUndo}
             disabled={!canUndo}
             title="Annuler (Ctrl+Z)"
-            className="p-1.5 sm:p-2 text-slate-700 hover:bg-white hover:text-blue-600 rounded-lg sm:rounded-xl transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-700 cursor-pointer disabled:cursor-not-allowed shadow-none"
-            whileHover={{ scale: canUndo ? 1.05 : 1 }}
-            whileTap={{ scale: canUndo ? 0.92 : 1 }}
+            className="p-1.5 sm:p-2 text-white/80 hover:bg-white/20 hover:text-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/80 cursor-pointer disabled:cursor-not-allowed"
+            whileHover={{ scale: canUndo ? 1.08 : 1 }}
+            whileTap={{ scale: canUndo ? 0.9 : 1 }}
           >
-            <Undo2 className="w-4 h-4" />
+            <Undo2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </motion.button>
 
-          <div className="h-4 w-[1px] bg-slate-200 my-auto" />
+          <div className="h-4 w-px bg-white/15" />
 
           <motion.button
             onClick={onRedo}
             disabled={!canRedo}
             title="Rétablir (Ctrl+Y)"
-            className="p-1.5 sm:p-2 text-slate-700 hover:bg-white hover:text-blue-600 rounded-lg sm:rounded-xl transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-700 cursor-pointer disabled:cursor-not-allowed shadow-none"
-            whileHover={{ scale: canRedo ? 1.05 : 1 }}
-            whileTap={{ scale: canRedo ? 0.92 : 1 }}
+            className="p-1.5 sm:p-2 text-white/80 hover:bg-white/20 hover:text-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/80 cursor-pointer disabled:cursor-not-allowed"
+            whileHover={{ scale: canRedo ? 1.08 : 1 }}
+            whileTap={{ scale: canRedo ? 0.9 : 1 }}
           >
-            <Redo2 className="w-4 h-4" />
+            <Redo2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </motion.button>
         </div>
 
-        {/* Bouton Ajouter */}
+        {/* Bouton Ajouter — seule touche de couleur vive de la barre */}
         <motion.button
           onClick={onAddPerson}
-          className="p-2 sm:px-4 sm:py-2 bg-slate-900 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold hover:bg-slate-800 transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+          className="px-3 sm:px-4 py-2 bg-white text-[#123549] rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:shadow-md hover:bg-white/90 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
-          title="Ajouter"
+          title="Ajouter un employé"
         >
-          <Plus className="w-4 h-4 text-emerald-400" />
+          <Plus className="w-4 h-4" />
           <span className="hidden lg:inline">Ajouter</span>
         </motion.button>
 
-        {/* Bouton Sauvegarder */}
+        {/* Bouton Enregistrer */}
         <motion.button
           onClick={onSave}
           disabled={saving}
           title="Enregistrer"
-          className="p-2 sm:px-4 sm:py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold hover:from-emerald-500 hover:to-teal-500 transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+          className="px-3 sm:px-4 py-2 bg-white/10 text-white border border-white/20 rounded-xl text-xs sm:text-sm font-semibold hover:bg-white/20 transition-all disabled:opacity-50 flex items-center gap-1.5 sm:gap-2 cursor-pointer"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
         >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <span className="hidden lg:inline">{saving ? 'Enregistrement...' : 'Enregistrer'}</span>
         </motion.button>
+
+        <div className="h-8 w-px bg-white/15 hidden sm:block" />
 
         {/* Menu Contextuel / Actions */}
         <div className="relative" ref={actionsMenuRef}>
@@ -219,10 +251,10 @@ export function Toolbar({
             type="button"
             onClick={() => setActionsOpen((v) => !v)}
             title="Plus d'actions"
-            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl transition-all cursor-pointer border shadow-xs ${
+            className={`flex items-center gap-0.5 p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer border ${
               actionsOpen
-                ? 'bg-blue-50 border-blue-200 text-blue-700'
-                : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200/70 hover:text-slate-900'
+                ? 'bg-white/20 border-white/30 text-white'
+                : 'bg-white/10 border-white/15 text-white/80 hover:bg-white/20 hover:text-white'
             }`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -233,13 +265,13 @@ export function Toolbar({
           <AnimatePresence>
             {actionsOpen && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.95, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                exit={{ opacity: 0, scale: 0.95, y: 8 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute right-0 mt-2 w-52 sm:w-60 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden p-1.5"
+                className="absolute right-0 mt-2 w-60 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-900/20 z-50 overflow-hidden p-1.5"
               >
-                <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Projets & Gestion
                 </div>
 
@@ -249,16 +281,28 @@ export function Toolbar({
                     onOpenProjectsModal();
                     setActionsOpen(false);
                   }}
-                  className="w-full px-3 py-2.5 text-left text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-600 rounded-xl transition flex items-center gap-2.5 cursor-pointer"
+                  className="w-full px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#205170] rounded-xl transition flex items-center gap-2.5 cursor-pointer"
                 >
-                  <FolderOpen className="w-4 h-4 text-blue-600" />
+                  <FolderOpen className="w-4 h-4" style={{ color: BRAND }} />
                   <span>Mes projets</span>
                 </button>
 
-                <div className="my-1 border-t border-slate-100" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenEmployeeList();
+                    setActionsOpen(false);
+                  }}
+                  className="w-full px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#205170] rounded-xl transition flex items-center gap-2.5 cursor-pointer md:hidden"
+                >
+                  <Users className="w-4 h-4" style={{ color: BRAND }} />
+                  <span>Liste des employés</span>
+                </button>
 
-                <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Options d'export
+                <div className="my-1.5 border-t border-slate-100" />
+
+                <div className="px-3 pt-1.5 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Export
                 </div>
 
                 <button
@@ -268,17 +312,17 @@ export function Toolbar({
                     setActionsOpen(false);
                   }}
                   disabled={exportingPdf}
-                  className="w-full px-3 py-2.5 text-left text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-600 rounded-xl transition flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                  className="w-full px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#205170] rounded-xl transition flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
                 >
                   {exportingPdf ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: BRAND }} />
                   ) : (
-                    <FileDown className="w-4 h-4 text-blue-600" />
+                    <FileDown className="w-4 h-4" style={{ color: BRAND }} />
                   )}
                   <span>Exporter en PDF</span>
                 </button>
 
-                <div className="my-1 border-t border-slate-100" />
+                <div className="my-1.5 border-t border-slate-100" />
 
                 <button
                   type="button"
@@ -287,7 +331,7 @@ export function Toolbar({
                     setActionsOpen(false);
                   }}
                   disabled={saving}
-                  className="w-full px-3 py-2.5 text-left text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-emerald-600 rounded-xl transition flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                  className="w-full px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4 text-emerald-600" />
                   <span>Sauvegarder le projet</span>
@@ -301,11 +345,14 @@ export function Toolbar({
         <motion.button
           onClick={onOpenAccount}
           title="Mon compte"
-          className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-slate-900 text-white rounded-xl sm:rounded-2xl hover:bg-slate-800 transition-all cursor-pointer shadow-xs"
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.92 }}
+          className="flex items-center gap-1 pl-0.5 pr-1 sm:pl-1 sm:pr-1.5 py-1 rounded-full border border-white/20 hover:border-white/35 bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.94 }}
         >
-          <User className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full bg-white text-[#123549] shrink-0">
+            <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </div>
+          <ChevronDown className="w-3 h-3 text-white/60 hidden sm:block" />
         </motion.button>
       </div>
     </motion.header>

@@ -34,6 +34,7 @@ type SnapshotNode = {
     lastName: string;
     jobTitle: string;
     photoUrl: string;
+    hierarchyLevel: number | null; // ← AJOUTÉ : conservé pour undo/redo pendant la session
   };
 };
 
@@ -56,9 +57,9 @@ export function useOrganigramme() {
   const [exportPdfProgress, setExportPdfProgress] = useState(0);
 
   const printRef = useRef<HTMLDivElement>(null);
-
   const nodesRef = useRef<Node[]>(nodes);
   const edgesRef = useRef<Edge[]>(edges);
+
   // Synchronisation directe (pas de useEffect) : évite tout décalage d'un
   // tick entre l'état React et la valeur lue par commitHistory/makeSnapshot.
   nodesRef.current = nodes;
@@ -68,10 +69,12 @@ export function useOrganigramme() {
   const pastRef = useRef<FlowSnapshot[]>([]);
   const futureRef = useRef<FlowSnapshot[]>([]);
   const textEditLockTimerRef = useRef<number | null>(null);
+
   // Empêche de committer plusieurs fois pendant un même geste continu
   // (drag ou resize) : on ne veut capturer le snapshot "avant" qu'une
   // seule fois, au tout premier événement du geste.
   const gestureCommitPendingRef = useRef(false);
+
   // Après une édition de contenu (nom/poste) qui peut faire grandir une
   // carte (retour à la ligne), on ne connaît la VRAIE hauteur qu'une fois
   // React Flow ayant re-mesuré le DOM après le rendu — pas au moment où
@@ -89,11 +92,18 @@ export function useOrganigramme() {
   }, []);
 
   const buildNodeData = useCallback(
-    (base: { firstName: string; lastName: string; jobTitle: string; photoUrl: string }) => ({
+    (base: {
+      firstName: string;
+      lastName: string;
+      jobTitle: string;
+      photoUrl: string;
+      hierarchyLevel?: number | null; // ← AJOUTÉ
+    }) => ({
       lastName: base.lastName || '',
       firstName: base.firstName || '',
       jobTitle: base.jobTitle || '',
       photoUrl: base.photoUrl || '',
+      hierarchyLevel: base.hierarchyLevel ?? null, // ← AJOUTÉ : null = placement automatique
       onChange: handleNodeDataChange,
       onPhotoUpload: handlePhotoUpload,
       onDeleteNode: handleDeleteNode,
@@ -106,7 +116,6 @@ export function useOrganigramme() {
       (typeof node.style?.width === 'number' ? node.style.width : undefined) || node.measured?.width || 180;
     const rawHeight =
       (typeof node.style?.height === 'number' ? node.style.height : undefined) || node.measured?.height || null;
-
     return {
       id: node.id,
       position: { x: node.position.x, y: node.position.y },
@@ -117,6 +126,7 @@ export function useOrganigramme() {
         lastName: (node.data as any)?.lastName || '',
         jobTitle: (node.data as any)?.jobTitle || '',
         photoUrl: (node.data as any)?.photoUrl || '',
+        hierarchyLevel: (node.data as any)?.hierarchyLevel ?? null, // ← AJOUTÉ
       },
     };
   }, []);
@@ -165,7 +175,6 @@ export function useOrganigramme() {
       isRestoringRef.current = true;
       setNodes(snapshot.nodes.map(deserializeNode));
       setEdges(snapshot.edges.map((edge) => ({ ...edge })));
-
       requestAnimationFrame(() => {
         isRestoringRef.current = false;
       });
@@ -176,11 +185,9 @@ export function useOrganigramme() {
   const undo = useCallback(() => {
     const previous = pastRef.current[pastRef.current.length - 1];
     if (!previous) return;
-
     const current = makeSnapshot();
     pastRef.current = pastRef.current.slice(0, -1);
     futureRef.current = [current, ...futureRef.current].slice(0, HISTORY_LIMIT);
-
     restoreSnapshot(previous);
     updateHistoryFlags();
   }, [makeSnapshot, restoreSnapshot, updateHistoryFlags]);
@@ -188,11 +195,9 @@ export function useOrganigramme() {
   const redo = useCallback(() => {
     const next = futureRef.current[0];
     if (!next) return;
-
     const current = makeSnapshot();
     futureRef.current = futureRef.current.slice(1);
     pastRef.current = [...pastRef.current, current].slice(-HISTORY_LIMIT);
-
     restoreSnapshot(next);
     updateHistoryFlags();
   }, [makeSnapshot, restoreSnapshot, updateHistoryFlags]);
@@ -201,11 +206,9 @@ export function useOrganigramme() {
     if (textEditLockTimerRef.current === null) {
       commitHistory();
     }
-
     if (textEditLockTimerRef.current !== null) {
       window.clearTimeout(textEditLockTimerRef.current);
     }
-
     textEditLockTimerRef.current = window.setTimeout(() => {
       textEditLockTimerRef.current = null;
     }, 300);
@@ -226,18 +229,15 @@ export function useOrganigramme() {
   useEffect(() => {
     const pending = pendingRelayoutRef.current;
     if (!pending || isRestoringRef.current || gestureCommitPendingRef.current) return;
-
     const node = nodes.find((n) => n.id === pending.nodeId);
     if (!node) {
       pendingRelayoutRef.current = null;
       return;
     }
-
     const measuredHeight = node.measured?.height;
     // Toujours la même hauteur qu'avant l'édition : la vraie mesure post-
     // rendu n'est pas encore arrivée, on attend le prochain passage.
     if (measuredHeight === undefined || measuredHeight === pending.previousHeight) return;
-
     pendingRelayoutRef.current = null;
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
       nodesRef.current,
@@ -271,16 +271,13 @@ export function useOrganigramme() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}-${Math.random()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
-
       const { error: uploadError } = await supabase.storage.from('photos_employes').upload(filePath, file);
       if (uploadError) {
         toast.error('Erreur téléversement image: ' + uploadError.message);
         return;
       }
-
       const { data: publicUrlData } = supabase.storage.from('photos_employes').getPublicUrl(filePath);
       const publicUrl = publicUrlData.publicUrl;
-
       commitHistory();
       setNodes((nds) =>
         nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, photoUrl: publicUrl } } : node))
@@ -337,11 +334,18 @@ export function useOrganigramme() {
         lastName: item.last_name || '',
         jobTitle: item.job_title || '',
         photoUrl: item.photo_url || '',
+        hierarchyLevel: item.hierarchy_level ?? null,
       }),
     }));
 
-    setNodes(loadedNodes);
-    setEdges(loadedEdges);
+    // 3. Recalculer la disposition et réinsérer les données de contournement (bypassX / branchY)
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      loadedNodes,
+      loadedEdges
+    );
+
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
     clearHistory();
     gestureCommitPendingRef.current = false;
     pendingRelayoutRef.current = null;
@@ -412,7 +416,6 @@ export function useOrganigramme() {
           gestureCommitPendingRef.current = true;
           commitHistory();
         }
-
         if (isGestureEnd(changes)) {
           gestureCommitPendingRef.current = false;
         }
@@ -425,9 +428,7 @@ export function useOrganigramme() {
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     const removals = changes.filter((change) => change.type === 'remove');
     const others = changes.filter((change) => change.type !== 'remove');
-
     if (others.length > 0) setEdges((eds) => applyEdgeChanges(others, eds));
-
     if (removals.length > 0) {
       const idToRemove = (removals[0] as { id: string }).id;
       setEdges((currentEdges) => {
@@ -441,7 +442,22 @@ export function useOrganigramme() {
   const onConnect = useCallback(
     (connection: Connection) => {
       commitHistory();
-      setEdges((eds) => addEdge({ ...connection, type: 'orgEdge', animated: true, interactionWidth: 30 }, eds));
+      const newEdge: Edge = {
+        ...connection,
+        id: `e-${connection.source}-${connection.target}`,
+        type: 'orgEdge',
+        animated: true,
+        interactionWidth: 30,
+      };
+      const updatedEdges = addEdge(newEdge, edgesRef.current);
+
+      // Recalcule la disposition et les couloirs de contournement
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        nodesRef.current,
+        updatedEdges
+      );
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
     },
     [commitHistory]
   );
@@ -454,7 +470,15 @@ export function useOrganigramme() {
   const confirmDeleteEdge = useCallback(() => {
     if (!edgeDeleteTarget) return;
     commitHistory();
-    setEdges((eds) => eds.filter((e) => e.id !== edgeDeleteTarget.id));
+    const updatedEdges = edgesRef.current.filter((e) => e.id !== edgeDeleteTarget.id);
+
+    // Recalcule la disposition lors de la suppression d'une liaison
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      nodesRef.current,
+      updatedEdges
+    );
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
     setEdgeDeleteTarget(null);
     toast.success('Liaison supprimée');
   }, [edgeDeleteTarget, commitHistory]);
@@ -463,7 +487,6 @@ export function useOrganigramme() {
   const getNodeDepth = useCallback((nodeId: string, allEdges: Edge[]): number => {
     const parentEdges = allEdges.filter((e) => e.target === nodeId);
     if (parentEdges.length === 0) return 1;
-
     const parentDepths = parentEdges.map((e) => getNodeDepth(e.source, allEdges));
     return Math.max(...parentDepths) + 1;
   }, []);
@@ -479,6 +502,7 @@ export function useOrganigramme() {
     const level1Nodes = nodesRef.current.filter(
       (n) => getNodeDepth(n.id, edgesRef.current) === 1
     );
+
     const flowX = X_START + level1Nodes.length * X_SPACING;
 
     const newNode: Node = {
@@ -508,6 +532,7 @@ export function useOrganigramme() {
       jobTitle: string;
       photoFile: File | null;
       parentIds: string[];
+      hierarchyLevel?: number | null; // ← AJOUTÉ : niveau 1-indexé, null = automatique
     }) => {
       const newId = crypto.randomUUID();
       let photoUrl = '';
@@ -516,10 +541,10 @@ export function useOrganigramme() {
         const fileExt = formData.photoFile.name.split('.').pop();
         const fileName = `${newId}-${Math.random()}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
-
         const { error: uploadError } = await supabase.storage
           .from('photos_employes')
           .upload(filePath, formData.photoFile);
+
         if (!uploadError) {
           const { data: publicUrlData } = supabase.storage
             .from('photos_employes')
@@ -528,7 +553,9 @@ export function useOrganigramme() {
         }
       }
 
-      // 1. Création du nœud avec une position temporaire (0,0)
+      // 1. Création du nœud avec une position temporaire (0,0) — le
+      //    niveau hiérarchique forcé (si fourni) est stocké dans data, et
+      //    lu par computeDepths dans getLayoutedElements ci-dessous.
       const newNode: Node = {
         id: newId,
         type: 'personNode',
@@ -539,6 +566,7 @@ export function useOrganigramme() {
           lastName: formData.lastName,
           jobTitle: formData.jobTitle,
           photoUrl,
+          hierarchyLevel: formData.hierarchyLevel ?? null, // ← AJOUTÉ
         }),
       };
 
@@ -556,7 +584,9 @@ export function useOrganigramme() {
       const updatedNodes = nodesRef.current.concat(newNode);
       const updatedEdges = edgesRef.current.concat(newEdges);
 
-      // 4. MAGIE : On passe le tout à Dagre pour qu'il calcule les positions parfaites
+      // 4. On passe le tout à getLayoutedElements, qui respecte le niveau
+      //    forcé sur le nouveau nœud (s'il y en a un) et place tous les
+      //    autres nœuds normalement autour.
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
         updatedNodes,
         updatedEdges
@@ -569,7 +599,6 @@ export function useOrganigramme() {
       toast.success("Employé ajouté et organigramme réorganisé");
     },
     [buildNodeData, commitHistory]
-    // Plus besoin de getNodeDepth ici !
   );
 
   // --- Modifier un employé existant depuis le formulaire (nom, prénom,
@@ -583,15 +612,11 @@ export function useOrganigramme() {
         jobTitle: string;
         photoFile: File | null;
         parentIds: string[];
+        hierarchyLevel?: number | null; // ← Ajouté
       }
     ) => {
       commitHistory();
 
-      // Hauteur mesurée AVANT l'édition : c'est celle que le premier
-      // recalcul de disposition ci-dessous va utiliser (React Flow n'a
-      // pas encore re-mesuré le DOM avec le nouveau texte). Servira de
-      // référence pour savoir quand la vraie hauteur post-édition est
-      // enfin connue (voir l'effet plus haut).
       const previousMeasuredHeight = nodesRef.current.find((n) => n.id === id)?.measured?.height;
 
       let photoUrl: string | undefined;
@@ -599,10 +624,10 @@ export function useOrganigramme() {
         const fileExt = updates.photoFile.name.split('.').pop();
         const fileName = `${id}-${Math.random()}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
-
         const { error: uploadError } = await supabase.storage
           .from('photos_employes')
           .upload(filePath, updates.photoFile);
+
         if (!uploadError) {
           const { data: publicUrlData } = supabase.storage
             .from('photos_employes')
@@ -611,7 +636,6 @@ export function useOrganigramme() {
         }
       }
 
-      // Reconstruire les nouvelles liaisons
       const withoutOldEdges = edgesRef.current.filter((e) => e.target !== id);
       const newEdges: Edge[] = updates.parentIds.map((pId) => ({
         id: `e-${pId}-${id}`,
@@ -632,14 +656,13 @@ export function useOrganigramme() {
               firstName: updates.firstName,
               lastName: updates.lastName,
               jobTitle: updates.jobTitle,
+              hierarchyLevel: updates.hierarchyLevel ?? null, // ← Ajouté : applique le niveau forcé
               ...(photoUrl ? { photoUrl } : {}),
             },
           }
           : node
       );
 
-      // Recalcule toute la disposition (X via dagre, Y unifié par niveau,
-      // branchY par paire de niveaux) — la hiérarchie a pu changer.
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
         updatedNodesRaw,
         finalEdges
@@ -648,12 +671,6 @@ export function useOrganigramme() {
       setNodes(layoutedNodes);
       setEdges(layoutedEdges);
 
-      // Le nœud édité n'a pas encore été re-mesuré avec son NOUVEAU
-      // contenu (poste et/ou nom potentiellement plus long) : la
-      // disposition ci-dessus utilise donc encore son ancienne hauteur.
-      // On planifie un second recalcul dès que la vraie hauteur sera
-      // connue, pour que les rangées suivantes descendent si la carte
-      // s'est agrandie et masquait sa liaison du bas.
       pendingRelayoutRef.current = { nodeId: id, previousHeight: previousMeasuredHeight };
 
       toast.success('Employé mis à jour');
@@ -671,7 +688,6 @@ export function useOrganigramme() {
     [handleDeleteNode]
   );
 
-
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
       if (!(target instanceof HTMLElement)) return false;
@@ -685,13 +701,11 @@ export function useOrganigramme() {
       if (isEditableTarget(event.target)) return;
 
       const key = event.key.toLowerCase();
-
       if (key === 'z' && !event.shiftKey) {
         event.preventDefault();
         undo();
         return;
       }
-
       if (key === 'y' || (key === 'z' && event.shiftKey)) {
         event.preventDefault();
         redo();
@@ -713,8 +727,7 @@ export function useOrganigramme() {
       if (!projectId) return;
       setSaving(true);
       try {
-        // 1. Mise à jour des nœuds (sans parent_id)
-        // 1. Mise à jour des nœuds (sans parent_id)
+        // 1. Mise à jour des nœuds avec le niveau hiérarchique
         const payloadNodes = nodes.map((n) => ({
           id: n.id,
           project_id: projectId,
@@ -726,10 +739,10 @@ export function useOrganigramme() {
           position_y: n.position.y,
           width: (n.style?.width as number) || n.measured?.width || 180,
           height: (n.style?.height as number) || n.measured?.height || null,
+          hierarchy_level: (n.data as any).hierarchyLevel ?? null, // <-- AJOUTÉ : persiste le niveau/index
         }));
 
         if (payloadNodes.length > 0) {
-          // NOUVEAU : On supprime d'abord les nœuds qui ont été effacés du canvas
           const nodeIds = payloadNodes.map((n) => n.id);
           await supabase
             .from('nodes')
@@ -737,16 +750,13 @@ export function useOrganigramme() {
             .eq('project_id', projectId)
             .not('id', 'in', `(${nodeIds.join(',')})`);
 
-          // Puis on ajoute/met à jour les nœuds existants
           const { error: nodeErr } = await supabase.from('nodes').upsert(payloadNodes, { onConflict: 'id' });
           if (nodeErr) throw nodeErr;
         } else {
-          // S'il n'y a plus aucune carte sur le canvas, on vide la table pour ce projet
           await supabase.from('nodes').delete().eq('project_id', projectId);
         }
 
         // 2. Synchronisation des relations (edges)
-        // CORRECTION : Une seule suppression des anciennes liaisons (le doublon a été retiré)
         const { error: deleteEdgeErr } = await supabase.from('edges').delete().eq('project_id', projectId);
         if (deleteEdgeErr) throw deleteEdgeErr;
 
@@ -756,8 +766,6 @@ export function useOrganigramme() {
             source_id: e.source,
             target_id: e.target,
           }));
-
-          // CORRECTION : Utilisation de .insert() au lieu de .upsert() pour éviter l'erreur RLS UPDATE
           const { error: edgeErr } = await supabase.from('edges').insert(payloadEdges);
           if (edgeErr) throw edgeErr;
         }
@@ -778,7 +786,6 @@ export function useOrganigramme() {
     [nodes, edges]
   );
 
-  // --- Export PDF ---
   // --- Export PDF (via Puppeteer côté serveur) ---
   const exportPDF = useCallback(
     async (projectTitle: string) => {
@@ -798,9 +805,6 @@ export function useOrganigramme() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            // On envoie les nœuds React Flow tels quels (type, style, data...) —
-            // PAS serializeNode(), qui produit le format de sauvegarde DB
-            // (sans `type` ni `style`), incompatible avec le rendu de PersonNode.
             nodes: nodesRef.current.map((n) => ({
               id: n.id,
               type: n.type,
@@ -849,7 +853,7 @@ export function useOrganigramme() {
         setExportPdfProgress(0);
       }
     },
-    [exportingPdf, serializeNode]
+    [exportingPdf]
   );
 
   return {

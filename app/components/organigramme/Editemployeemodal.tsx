@@ -14,6 +14,7 @@ export interface EmployeeUpdateData {
   jobTitle: string;
   photoFile: File | null;
   parentIds: string[];
+  hierarchyLevel: number | null; // ← AJOUTÉ
 }
 
 export function EditEmployeeModal({
@@ -39,6 +40,7 @@ export function EditEmployeeModal({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [parentIds, setParentIds] = useState<string[]>([]);
+  const [hierarchyLevel, setHierarchyLevel] = useState(''); // ← AJOUTÉ
 
   // États pour le recadrage
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -52,6 +54,12 @@ export function EditEmployeeModal({
     setJobTitle(data.jobTitle || '');
     setPhotoFile(null);
     setPhotoPreview(data.photoUrl || null);
+
+    // Pré-remplit le champ si la carte a déjà un niveau forcé, vide sinon
+    // (= placement automatique).
+    setHierarchyLevel(
+      typeof data.hierarchyLevel === 'number' ? String(data.hierarchyLevel) : '' // ← AJOUTÉ
+    );
 
     const currentParentIds = edges
       .filter((e) => e.target === node.id)
@@ -89,12 +97,16 @@ export function EditEmployeeModal({
     e.preventDefault();
     if (!node || !firstName.trim() || !lastName.trim()) return;
 
+    const trimmedLevel = hierarchyLevel.trim();
+    const parsedLevel = trimmedLevel === '' ? null : Number(trimmedLevel);
+
     await onSubmit(node.id, {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       jobTitle: jobTitle.trim(),
       photoFile,
       parentIds,
+      hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
     });
   };
 
@@ -239,6 +251,24 @@ export function EditEmployeeModal({
                       Les subordonnés directs et indirects sont masqués pour éviter les boucles d'arborescence.
                     </p>
                   )}
+                </div>
+
+                {/* Niveau hiérarchique (optionnel) — AJOUTÉ */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-800 mb-1 block">
+                    Niveau hiérarchique <span className="font-normal text-slate-400">(optionnel)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={hierarchyLevel}
+                    onChange={(e) => setHierarchyLevel(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] md:text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all bg-slate-50/50 focus:bg-white"
+                    placeholder="Laisser vide pour un placement automatique"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    1 = sommet de l'organigramme. Si vide, la carte se replace automatiquement sous son supérieur.
+                  </p>
                 </div>
 
                 <motion.button

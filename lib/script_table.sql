@@ -304,3 +304,8 @@ CREATE POLICY "Owner delete edges" ON edges FOR DELETE TO authenticated
 ALTER TABLE pdf_exports ENABLE ROW LEVEL SECURITY;
 -- Aucune policy publique : seule la clé service_role (utilisée uniquement
 -- côté serveur, jamais exposée au client) peut lire/écrire cette table.
+
+
+
+------- 18/08 ------
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS hierarchy_level INTEGER;
