@@ -103,9 +103,9 @@ export function AddEmployeeModal({
       jobTitle: jobTitle.trim(),
       photoFile,
       parentIds,
-      hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
+      hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null,
       layoutSide: hasLevelJump ? layoutSide : null,
-      routingMode: hasLevelJump ? routingMode : 'independent',
+      routingMode: hasLevelJump && routingMode ? routingMode : 'independent', // ← CORRIGÉ
     });
 
     resetForm();
