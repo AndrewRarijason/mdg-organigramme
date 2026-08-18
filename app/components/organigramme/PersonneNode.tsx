@@ -53,11 +53,10 @@ export const PersonNode = ({
 
   return (
     <motion.div
-      className={`w-full h-auto min-w-[160px] md:min-w-[200px] box-border rounded-2xl p-3 md:p-4 flex flex-col items-center gap-2 relative group border transition-colors duration-300 ${
-        isTopLevel
+      className={`w-full h-auto min-w-[160px] md:min-w-[200px] box-border rounded-2xl p-3 md:p-4 flex flex-col items-center gap-2 relative group border transition-colors duration-300 ${isTopLevel
           ? 'bg-[#205170] border-[#163c53] shadow-lg shadow-[#205170]/20'
           : 'bg-white/95 backdrop-blur-md border-slate-200/80 shadow-sm hover:border-[#205170]/40'
-      } ${selected ? 'border-[#205170] ring-2 ring-[#205170]/25' : ''}`}
+        } ${selected ? 'border-[#205170] ring-2 ring-[#205170]/25' : ''}`}
       initial={{ scale: 0.85, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0.85, opacity: 0 }}
@@ -105,9 +104,8 @@ export const PersonNode = ({
       {/* Photo de profil (ou initiales si aucune photo n'a été ajoutée) */}
       <div className="relative mt-1">
         <div
-          className={`w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden p-0.5 flex-shrink-0 shadow-md ${
-            isTopLevel ? 'bg-white/15 ring-2 ring-white/30' : 'bg-gradient-to-tr from-[#205170] to-[#2d6d94]'
-          }`}
+          className={`w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden p-0.5 flex-shrink-0 shadow-md ${isTopLevel ? 'bg-white/15 ring-2 ring-white/30' : 'bg-gradient-to-tr from-[#205170] to-[#2d6d94]'
+            }`}
         >
           <div className="w-full h-full rounded-full overflow-hidden bg-slate-50 flex items-center justify-center">
             {data.photoUrl ? (
@@ -126,7 +124,8 @@ export const PersonNode = ({
             {data.firstName}
           </span>{' '}
           <span
-            className={`font-bold uppercase tracking-wide ${isTopLevel ? 'text-white' : 'text-slate-900'}`}
+            className={`inline-block max-w-full break-all font-bold uppercase tracking-wide ${isTopLevel ? 'text-white' : 'text-slate-900'
+              }`}
           >
             {data.lastName}
           </span>
@@ -134,14 +133,12 @@ export const PersonNode = ({
 
         {data.jobTitle && (
           <div
-            className={`w-full rounded-md px-2 py-1 border flex items-start gap-1.5 mt-0.5 justify-center ${
-              isTopLevel ? 'bg-white/10 border-white/15' : 'bg-[#205170] border-[#205170]/10'
-            }`}
+            className={`w-full rounded-md px-2 py-1 border flex items-start gap-1.5 mt-0.5 justify-center ${isTopLevel ? 'bg-white/10 border-white/15' : 'bg-[#205170] border-[#205170]/10'
+              }`}
           >
             <span
-              className={`text-center text-[11px] md:text-[12px] font-medium leading-tight whitespace-normal break-words max-w-full ${
-                isTopLevel ? 'text-white/85' : 'text-slate-100'
-              }`}
+              className={`text-center text-[11px] md:text-[12px] font-medium leading-tight whitespace-normal break-words max-w-full ${isTopLevel ? 'text-white/85' : 'text-slate-100'
+                }`}
             >
               {data.jobTitle}
             </span>

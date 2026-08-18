@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Edit, Upload, Loader2, Crop, Sparkles, UserCheck } from 'lucide-react';
 import type { Node, Edge } from '@xyflow/react';
-import { getDescendantIds } from '@/app/lib/hierarchy';
+import { getDescendantIds, getHierarchyLevels } from '@/app/lib/hierarchy';
 import { ImageCropperModal } from './ImageCropperModal';
 import { SupervisorSelect } from './SupervisorSelect';
 
@@ -14,6 +14,8 @@ export interface EmployeeUpdateData {
   jobTitle: string;
   photoFile: File | null;
   parentIds: string[];
+  layoutSide?: 'left' | 'right' | null;
+  routingMode?: 'independent' | 'shared';
   hierarchyLevel: number | null; // ← AJOUTÉ
 }
 
@@ -40,6 +42,9 @@ export function EditEmployeeModal({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [parentIds, setParentIds] = useState<string[]>([]);
+  const [layoutSide, setLayoutSide] = useState<'left' | 'right' | null>(null);
+  const [routingMode, setRoutingMode] = useState<'independent' | 'shared' | null>(null);
+  const nodeLevels = useMemo(() => getHierarchyLevels(allNodes, edges), [allNodes, edges]);
   const [hierarchyLevel, setHierarchyLevel] = useState(''); // ← AJOUTÉ
 
   // États pour le recadrage
@@ -54,6 +59,7 @@ export function EditEmployeeModal({
     setJobTitle(data.jobTitle || '');
     setPhotoFile(null);
     setPhotoPreview(data.photoUrl || null);
+    setLayoutSide(data.layoutSide === 'left' || data.layoutSide === 'right' ? data.layoutSide : null);
 
     // Pré-remplit le champ si la carte a déjà un niveau forcé, vide sinon
     // (= placement automatique).
@@ -65,6 +71,8 @@ export function EditEmployeeModal({
       .filter((e) => e.target === node.id)
       .map((e) => e.source);
     setParentIds(currentParentIds);
+    const currentMode = edges.find((edge) => edge.target === node.id)?.data as any;
+    setRoutingMode(currentMode?.routingMode === 'shared' ? 'shared' : 'independent');
   }, [node, edges]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
