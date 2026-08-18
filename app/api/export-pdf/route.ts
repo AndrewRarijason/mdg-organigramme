@@ -9,44 +9,30 @@ export const maxDuration = 60;
 
 const SCALE = 2;
 
+/**
+ * Retourne le chemin vers Chrome installé localement.
+ *
+ * Sur Vercel, cette fonction n'est jamais utilisée :
+ * @sparticuz/chromium fournit son propre Chromium.
+ */
 function getLocalExecutablePath(): string {
-  // Sur Vercel, on utilise exclusivement le binaire Chromium distant
-  if (process.env.VERCEL) return '';
-
-  // Contourne l'analyse statique NFT/Webpack lors du build Next.js
-  const fs = eval("require")('fs');
-
-  if (
-    process.env.PUPPETEER_EXECUTABLE_PATH &&
-    fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)
-  ) {
+  // Variable d'environnement prioritaire
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
 
-  const possiblePaths = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-    process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
-    process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-    process.env.LOCALAPPDATA + '\\Microsoft\\Edge\\Application\\msedge.exe',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-  ];
-
-  for (const path of possiblePaths) {
-    if (path && fs.existsSync(path)) {
-      return path;
-    }
+  // Windows
+  if (process.platform === 'win32') {
+    return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
   }
 
-  return '';
+  // macOS
+  if (process.platform === 'darwin') {
+    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  }
+
+  // Linux
+  return '/usr/bin/google-chrome';
 }
 
 export async function POST(req: NextRequest) {
@@ -54,71 +40,283 @@ export async function POST(req: NextRequest) {
   let exportId: string | null = null;
 
   try {
+    // ---------------------------------------------------------
+    // 1. Récupération des données
+    // ---------------------------------------------------------
+
     const { nodes, edges, title } = await req.json();
 
     if (!Array.isArray(nodes) || nodes.length === 0) {
-      return NextResponse.json({ error: 'Aucun nœud à exporter' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'Aucun nœud à exporter',
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    exportId = await createExportEntry(nodes, edges, title || 'organigramme');
+    // ---------------------------------------------------------
+    // 2. Création de l'entrée temporaire d'export
+    // ---------------------------------------------------------
+
+    exportId = await createExportEntry(
+      nodes,
+      edges,
+      title || 'organigramme'
+    );
+
+    // ---------------------------------------------------------
+    // 3. URL de la page à imprimer
+    // ---------------------------------------------------------
 
     const origin = req.nextUrl.origin;
+
     const printUrl = `${origin}/print/${exportId}`;
 
-    const isVercel = !!process.env.VERCEL;
+    // ---------------------------------------------------------
+    // 4. Détection de Vercel
+    // ---------------------------------------------------------
 
-    const executablePath = isVercel
-      ? await chromium.executablePath(
-          'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
-        )
-      : getLocalExecutablePath();
+    const isVercel = Boolean(process.env.VERCEL);
+
+    // ---------------------------------------------------------
+    // 5. Configuration de Chromium
+    // ---------------------------------------------------------
+
+    let executablePath: string;
+
+    if (isVercel) {
+      /**
+       * Sur Vercel :
+       *
+       * On utilise Chromium fourni par @sparticuz/chromium.
+       *
+       * Aucun accès fs / existsSync n'est nécessaire.
+       */
+      executablePath = await chromium.executablePath(
+        'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
+      );
+    } else {
+      /**
+       * En développement local :
+       * on utilise Chrome installé sur la machine.
+       */
+      executablePath = getLocalExecutablePath();
+    }
+
+    // ---------------------------------------------------------
+    // 6. Lancement de Puppeteer
+    // ---------------------------------------------------------
 
     browser = await puppeteer.launch({
-      args: isVercel ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: isVercel
+        ? chromium.args
+        : [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+          ],
+
       executablePath,
+
       headless: true,
     });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 2400, height: 1600, deviceScaleFactor: SCALE });
-    await page.goto(printUrl, { waitUntil: 'networkidle0' });
-    await page.waitForSelector('[data-export-ready="true"]', { timeout: 15000 });
-    await new Promise((res) => setTimeout(res, 150));
+    // ---------------------------------------------------------
+    // 7. Création de la page
+    // ---------------------------------------------------------
 
-    const target = await page.$('[data-export-ready="true"]');
-    if (!target) throw new Error('Zone de capture introuvable');
+    const page = await browser.newPage();
+
+    await page.setViewport({
+      width: 2400,
+      height: 1600,
+      deviceScaleFactor: SCALE,
+    });
+
+    // ---------------------------------------------------------
+    // 8. Chargement de la page d'impression
+    // ---------------------------------------------------------
+
+    await page.goto(printUrl, {
+      waitUntil: 'networkidle0',
+    });
+
+    // ---------------------------------------------------------
+    // 9. Attendre que le diagramme soit prêt
+    // ---------------------------------------------------------
+
+    await page.waitForSelector(
+      '[data-export-ready="true"]',
+      {
+        timeout: 15000,
+      }
+    );
+
+    // Petit délai pour laisser le rendu graphique se stabiliser
+    await new Promise((resolve) =>
+      setTimeout(resolve, 150)
+    );
+
+    // ---------------------------------------------------------
+    // 10. Récupération de la zone à capturer
+    // ---------------------------------------------------------
+
+    const target = await page.$(
+      '[data-export-ready="true"]'
+    );
+
+    if (!target) {
+      throw new Error(
+        'Zone de capture introuvable'
+      );
+    }
+
+    // ---------------------------------------------------------
+    // 11. Calcul de la zone de capture
+    // ---------------------------------------------------------
 
     const box = await target.boundingBox();
-    if (!box) throw new Error('Impossible de mesurer le diagramme');
+
+    if (!box) {
+      throw new Error(
+        'Impossible de mesurer le diagramme'
+      );
+    }
+
+    // ---------------------------------------------------------
+    // 12. Capture PNG
+    // ---------------------------------------------------------
 
     const screenshot = await page.screenshot({
       type: 'png',
-      clip: { x: box.x, y: box.y, width: box.width, height: box.height },
-    });
 
-    await browser.close();
-    browser = null;
-
-    const pdfDoc = await PDFDocument.create();
-    const png = await pdfDoc.embedPng(screenshot);
-    const pdfPage = pdfDoc.addPage([png.width, png.height]);
-    pdfPage.drawImage(png, { x: 0, y: 0, width: png.width, height: png.height });
-    const pdfBytes = await pdfDoc.save();
-
-    const filename = (title || 'organigramme').toLowerCase().replace(/\s+/g, '-') + '.pdf';
-
-    return new NextResponse(Buffer.from(pdfBytes), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+      clip: {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
       },
     });
-  } catch (err: any) {
-    if (browser) await browser.close();
-    console.error('Erreur export PDF Puppeteer :', err);
-    return NextResponse.json({ error: err?.message || 'Erreur inconnue' }, { status: 500 });
+
+    // ---------------------------------------------------------
+    // 13. Fermeture de Chromium
+    // ---------------------------------------------------------
+
+    await browser.close();
+
+    browser = null;
+
+    // ---------------------------------------------------------
+    // 14. Création du PDF
+    // ---------------------------------------------------------
+
+    const pdfDoc = await PDFDocument.create();
+
+    const png = await pdfDoc.embedPng(
+      screenshot
+    );
+
+    const pdfPage = pdfDoc.addPage([
+      png.width,
+      png.height,
+    ]);
+
+    pdfPage.drawImage(png, {
+      x: 0,
+      y: 0,
+      width: png.width,
+      height: png.height,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+
+    // ---------------------------------------------------------
+    // 15. Nom du fichier
+    // ---------------------------------------------------------
+
+    const safeTitle =
+      (title || 'organigramme')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-_]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') ||
+      'organigramme';
+
+    const filename = `${safeTitle}.pdf`;
+
+    // ---------------------------------------------------------
+    // 16. Retour du PDF
+    // ---------------------------------------------------------
+
+    return new NextResponse(
+      Buffer.from(pdfBytes),
+      {
+        status: 200,
+
+        headers: {
+          'Content-Type': 'application/pdf',
+
+          'Content-Disposition': `attachment; filename="${filename}"`,
+
+          'Content-Length': pdfBytes.length.toString(),
+
+          'Cache-Control':
+            'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
+  } catch (err: unknown) {
+    // ---------------------------------------------------------
+    // Gestion des erreurs
+    // ---------------------------------------------------------
+
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {
+        // Ignore les erreurs de fermeture
+      }
+
+      browser = null;
+    }
+
+    console.error(
+      'Erreur export PDF Puppeteer :',
+      err
+    );
+
+    const message =
+      err instanceof Error
+        ? err.message
+        : 'Erreur inconnue';
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status: 500,
+      }
+    );
   } finally {
-    if (exportId) await deleteExportEntry(exportId);
+    // ---------------------------------------------------------
+    // Suppression de l'entrée temporaire
+    // ---------------------------------------------------------
+
+    if (exportId) {
+      try {
+        await deleteExportEntry(exportId);
+      } catch (cleanupError) {
+        console.error(
+          'Erreur lors du nettoyage de exportId :',
+          cleanupError
+        );
+      }
+    }
   }
 }
