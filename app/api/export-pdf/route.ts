@@ -11,7 +11,10 @@ export const maxDuration = 60;
 const SCALE = 2;
 
 function getLocalExecutablePath(): string {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+  if (
+    process.env.PUPPETEER_EXECUTABLE_PATH &&
+    fs.existsSync(/* turbopackIgnore: true */ process.env.PUPPETEER_EXECUTABLE_PATH)
+  ) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
 
@@ -33,7 +36,7 @@ function getLocalExecutablePath(): string {
   ];
 
   for (const path of possiblePaths) {
-    if (path && fs.existsSync(path)) {
+    if (path && fs.existsSync(/* turbopackIgnore: true */ path)) {
       return path;
     }
   }
