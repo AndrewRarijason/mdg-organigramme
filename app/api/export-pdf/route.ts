@@ -3,7 +3,6 @@ import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { PDFDocument } from 'pdf-lib';
 import { createExportEntry, deleteExportEntry } from '@/app/lib/exportCache';
-import fs from 'fs';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -11,9 +10,15 @@ export const maxDuration = 60;
 const SCALE = 2;
 
 function getLocalExecutablePath(): string {
+  // Sur Vercel, on utilise exclusivement le binaire Chromium distant
+  if (process.env.VERCEL) return '';
+
+  // Contourne l'analyse statique NFT/Webpack lors du build Next.js
+  const fs = eval("require")('fs');
+
   if (
     process.env.PUPPETEER_EXECUTABLE_PATH &&
-    fs.existsSync(/* turbopackIgnore: true */ process.env.PUPPETEER_EXECUTABLE_PATH)
+    fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)
   ) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
@@ -36,7 +41,7 @@ function getLocalExecutablePath(): string {
   ];
 
   for (const path of possiblePaths) {
-    if (path && fs.existsSync(/* turbopackIgnore: true */ path)) {
+    if (path && fs.existsSync(path)) {
       return path;
     }
   }
