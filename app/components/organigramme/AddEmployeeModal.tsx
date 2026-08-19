@@ -105,7 +105,7 @@ export function AddEmployeeModal({
       parentIds,
       hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null,
       layoutSide: hasLevelJump ? layoutSide : null,
-      routingMode: hasLevelJump && routingMode ? routingMode : 'independent', // ← CORRIGÉ
+      routingMode: hasLevelJump && routingMode ? routingMode : 'independent',
     });
 
     resetForm();
