@@ -314,3 +314,6 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS layout_side TEXT CHECK (layout_side I
 -- Mode de routage des sauts d'index : un chemin par enfant ou un tronc partagé.
 ALTER TABLE edges ADD COLUMN IF NOT EXISTS routing_mode TEXT NOT NULL DEFAULT 'independent'
   CHECK (routing_mode IN ('independent', 'shared'));
+
+-- Optimisation facultative des sauts d'index : utilise le canal libre le plus proche.
+ALTER TABLE edges ADD COLUMN IF NOT EXISTS is_shortest_distance BOOLEAN NOT NULL DEFAULT FALSE;

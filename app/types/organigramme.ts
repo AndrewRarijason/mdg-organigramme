@@ -4,6 +4,7 @@ export interface CustomNodeData {
   jobTitle: string;
   photoUrl: string;
   layoutSide?: 'left' | 'right' | null;
+  isShortestDistance?: boolean;
   onChange: (id: string, field: string, value: string) => void;
   onPhotoUpload: (id: string, file: File) => void;
   onDeleteNode: (id: string) => void;

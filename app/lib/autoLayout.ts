@@ -250,8 +250,16 @@ export function getLayoutedElements(
   layoutedNodes.forEach((node) => {
     const nodeDepth = depths.get(node.id) ?? 0;
     const parents = incomingEdges.get(node.id) || [];
+    const hasShortestBypass = parents.some((edge) => {
+      const parentDepth = depths.get(edge.source) ?? nodeDepth - 1;
+      return (
+        nodeDepth - parentDepth > 1 &&
+        edge.data?.isShortestDistance === true
+      );
+    });
     if (
       nodeDepth === 0 ||
+      hasShortestBypass ||
       parents.some((edge) => nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) === 1)
     ) {
       centeredIds.add(node.id);
@@ -543,6 +551,7 @@ export function getLayoutedElements(
       const targetNode = layoutedNodes.find((node) => node.id === edge.target);
       const requestedSide = (targetNode?.data as any)?.layoutSide as 'left' | 'right' | null;
       const routingMode = (edge.data as any)?.routingMode;
+      const isShortestDistance = edge.data?.isShortestDistance === true;
       const sharedRouteKey =
         routingMode === 'shared' && isBypass
           ? buildSharedRouteKey(edge.source, targetDepth, requestedSide)
@@ -619,7 +628,9 @@ export function getLayoutedElements(
 
         const innerX =
           commonGaps && commonGaps.length > 0
-            ? routingMode === 'independent' && requestedSide && targetNode
+            ? isShortestDistance
+              ? pickInnerLaneX(commonGaps, desiredX, minDepth, maxDepthCrossed)
+              : routingMode === 'independent' && requestedSide && targetNode
               ? pickIndependentSideLaneX(
                   commonGaps,
                   targetNode,

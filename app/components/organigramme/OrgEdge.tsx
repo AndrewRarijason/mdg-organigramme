@@ -178,6 +178,7 @@ export function OrgEdge({
   const bypassX = data?.bypassX as number | undefined;
   const isSharedBranch = data?.isSharedBranch === true;
   const isIndependentBypass = data?.routingMode === 'independent' && bypassX !== undefined;
+  const isShortestDistance = data?.isShortestDistance === true;
   const independentClearanceY = data?.independentClearanceY as number | undefined;
   const sourceBranchY =
     (data?.sourceBranchY as number | undefined) ??
@@ -192,7 +193,7 @@ export function OrgEdge({
 
   if (bypassX !== undefined && isSharedBranch) {
     path = buildSharedBranchPath(tx, ty, tby, Math.round(bypassX), CORNER_RADIUS);
-  } else if (isIndependentBypass) {
+  } else if (isIndependentBypass && !isShortestDistance) {
     // Le palier reste dans la rangée de la mère et ne descend donc pas vers
     // la rangée de la fille avant d'être aligné sur son axe X.
     const clearanceY = Math.min(Math.max(independentClearanceY ?? sby, sy), ty);

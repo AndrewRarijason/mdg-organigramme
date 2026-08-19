@@ -16,6 +16,7 @@ export interface EmployeeUpdateData {
   parentIds: string[];
   layoutSide?: 'left' | 'right' | null;
   routingMode?: 'independent' | 'shared';
+  isShortestDistance?: boolean;
   hierarchyLevel: number | null; // ← AJOUTÉ
 }
 
@@ -44,6 +45,7 @@ export function EditEmployeeModal({
   const [parentIds, setParentIds] = useState<string[]>([]);
   const [layoutSide, setLayoutSide] = useState<'left' | 'right' | null>(null);
   const [routingMode, setRoutingMode] = useState<'independent' | 'shared' | null>(null);
+  const [isShortestDistance, setIsShortestDistance] = useState(false);
   const nodeLevels = useMemo(() => getHierarchyLevels(allNodes, edges), [allNodes, edges]);
   const [hierarchyLevel, setHierarchyLevel] = useState(''); // ← AJOUTÉ
 
@@ -73,6 +75,7 @@ export function EditEmployeeModal({
     setParentIds(currentParentIds);
     const currentMode = edges.find((edge) => edge.target === node.id)?.data as any;
     setRoutingMode(currentMode?.routingMode === 'shared' ? 'shared' : 'independent');
+    setIsShortestDistance(currentMode?.isShortestDistance === true);
   }, [node, edges]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +114,7 @@ export function EditEmployeeModal({
       parsedLevel !== null &&
       parentIds.some((id) => parsedLevel > (nodeLevels.get(id) || 1) + 1);
 
-    if (hasLevelJump && (!layoutSide || !routingMode)) return;
+    if (hasLevelJump && !isShortestDistance && (!layoutSide || !routingMode)) return;
 
     await onSubmit(node.id, {
       firstName: firstName.trim(),
@@ -120,8 +123,9 @@ export function EditEmployeeModal({
       photoFile,
       parentIds,
       hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
-      layoutSide: hasLevelJump ? layoutSide : null,
-      routingMode: hasLevelJump && routingMode ? routingMode : 'independent',
+      layoutSide: hasLevelJump && !isShortestDistance ? layoutSide : null,
+      routingMode: hasLevelJump && !isShortestDistance && routingMode ? routingMode : 'independent',
+      isShortestDistance: hasLevelJump ? isShortestDistance : false,
     });
   };
 
@@ -296,40 +300,53 @@ export function EditEmployeeModal({
                     <p className="text-xs font-semibold text-amber-900">
                       Saut de niveau détecté : définissez le routage du lien.
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([['independent', 'Indépendant'], ['shared', 'Partagé']] as const).map(
-                        ([mode, label]) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setRoutingMode(mode)}
-                            className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                              routingMode === mode
-                                ? 'bg-[#205170] text-white'
-                                : 'border border-slate-200 bg-white text-slate-700'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        )
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(['left', 'right'] as const).map((side) => (
-                        <button
-                          key={side}
-                          type="button"
-                          onClick={() => setLayoutSide(side)}
-                          className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                            layoutSide === side
-                              ? 'bg-[#205170] text-white'
-                              : 'border border-slate-200 bg-white text-slate-700'
-                          }`}
-                        >
-                          {side === 'left' ? 'Gauche' : 'Droite'}
-                        </button>
-                      ))}
-                    </div>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={isShortestDistance}
+                        onChange={(e) => setIsShortestDistance(e.target.checked)}
+                        className="h-4 w-4 accent-[#205170]"
+                      />
+                      Plus courte distance
+                    </label>
+                    {!isShortestDistance && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([['independent', 'Indépendant'], ['shared', 'Partagé']] as const).map(
+                            ([mode, label]) => (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setRoutingMode(mode)}
+                                className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                                  routingMode === mode
+                                    ? 'bg-[#205170] text-white'
+                                    : 'border border-slate-200 bg-white text-slate-700'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            )
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(['left', 'right'] as const).map((side) => (
+                            <button
+                              key={side}
+                              type="button"
+                              onClick={() => setLayoutSide(side)}
+                              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                                layoutSide === side
+                                  ? 'bg-[#205170] text-white'
+                                  : 'border border-slate-200 bg-white text-slate-700'
+                              }`}
+                            >
+                              {side === 'left' ? 'Gauche' : 'Droite'}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </section>
                 )}
 

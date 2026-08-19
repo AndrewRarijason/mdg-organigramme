@@ -36,6 +36,7 @@ type SnapshotNode = {
     photoUrl: string;
     hierarchyLevel: number | null; // ← AJOUTÉ : conservé pour undo/redo pendant la session
     layoutSide: 'left' | 'right' | null;
+    isShortestDistance: boolean;
   };
 };
 
@@ -100,6 +101,7 @@ export function useOrganigramme() {
       photoUrl: string;
       hierarchyLevel?: number | null; // ← AJOUTÉ
       layoutSide?: 'left' | 'right' | null;
+      isShortestDistance?: boolean;
     }) => ({
       lastName: base.lastName || '',
       firstName: base.firstName || '',
@@ -107,6 +109,7 @@ export function useOrganigramme() {
       photoUrl: base.photoUrl || '',
       hierarchyLevel: base.hierarchyLevel ?? null, // ← AJOUTÉ : null = placement automatique
       layoutSide: base.layoutSide ?? null,
+      isShortestDistance: base.isShortestDistance === true,
       onChange: handleNodeDataChange,
       onPhotoUpload: handlePhotoUpload,
       onDeleteNode: handleDeleteNode,
@@ -131,6 +134,7 @@ export function useOrganigramme() {
         photoUrl: (node.data as any)?.photoUrl || '',
         hierarchyLevel: (node.data as any)?.hierarchyLevel ?? null, // ← AJOUTÉ
         layoutSide: (node.data as any)?.layoutSide ?? null,
+        isShortestDistance: (node.data as any)?.isShortestDistance === true,
       },
     };
   }, []);
@@ -325,7 +329,10 @@ export function useOrganigramme() {
       type: 'orgEdge',
       animated: true,
       interactionWidth: 30,
-      data: { routingMode: item.routing_mode || 'independent' },
+      data: {
+        routingMode: item.routing_mode || 'independent',
+        isShortestDistance: item.is_shortest_distance === true,
+      },
     }));
 
     // 2. Reconstruire les nodes
@@ -341,6 +348,9 @@ export function useOrganigramme() {
         photoUrl: item.photo_url || '',
         hierarchyLevel: item.hierarchy_level ?? null,
         layoutSide: item.layout_side ?? null,
+        isShortestDistance: loadedEdges.some(
+          (edge) => edge.target === item.id && edge.data?.isShortestDistance === true
+        ),
       }),
     }));
 
@@ -540,6 +550,7 @@ export function useOrganigramme() {
       parentIds: string[];
       layoutSide?: 'left' | 'right' | null;
       routingMode?: 'independent' | 'shared';
+      isShortestDistance?: boolean;
       hierarchyLevel?: number | null; // ← AJOUTÉ : niveau 1-indexé, null = automatique
     }) => {
       const newId = crypto.randomUUID();
@@ -575,6 +586,7 @@ export function useOrganigramme() {
           jobTitle: formData.jobTitle,
           photoUrl,
           layoutSide: formData.layoutSide ?? null,
+          isShortestDistance: formData.isShortestDistance === true,
           hierarchyLevel: formData.hierarchyLevel ?? null, // ← AJOUTÉ
         }),
       };
@@ -587,7 +599,10 @@ export function useOrganigramme() {
         type: 'orgEdge',
         animated: true,
         interactionWidth: 30,
-        data: { routingMode: formData.routingMode ?? 'independent' },
+        data: {
+          routingMode: formData.routingMode ?? 'independent',
+          isShortestDistance: formData.isShortestDistance === true,
+        },
       }));
 
       // 3. On ajoute temporairement les nouveaux éléments aux listes existantes
@@ -624,6 +639,7 @@ export function useOrganigramme() {
         parentIds: string[];
         layoutSide?: 'left' | 'right' | null;
         routingMode?: 'independent' | 'shared';
+        isShortestDistance?: boolean;
         hierarchyLevel?: number | null; // ← Ajouté
       }
     ) => {
@@ -656,7 +672,10 @@ export function useOrganigramme() {
         type: 'orgEdge',
         animated: true,
         interactionWidth: 30,
-        data: { routingMode: updates.routingMode ?? 'independent' },
+        data: {
+          routingMode: updates.routingMode ?? 'independent',
+          isShortestDistance: updates.isShortestDistance === true,
+        },
       }));
       const finalEdges = withoutOldEdges.concat(newEdges);
 
@@ -671,6 +690,7 @@ export function useOrganigramme() {
               jobTitle: updates.jobTitle,
               hierarchyLevel: updates.hierarchyLevel ?? null, // ← Ajouté : applique le niveau forcé
               layoutSide: updates.layoutSide ?? null,
+              isShortestDistance: updates.isShortestDistance === true,
               ...(photoUrl ? { photoUrl } : {}),
             },
           }
@@ -781,6 +801,7 @@ export function useOrganigramme() {
             source_id: e.source,
             target_id: e.target,
             routing_mode: (e.data as any)?.routingMode ?? 'independent',
+            is_shortest_distance: (e.data as any)?.isShortestDistance === true,
           }));
           const { error: edgeErr } = await supabase.from('edges').insert(payloadEdges);
           if (edgeErr) throw edgeErr;
