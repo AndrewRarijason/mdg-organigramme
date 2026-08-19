@@ -274,22 +274,30 @@ export function getLayoutedElements(
     const nodeDepth = depths.get(node.id) ?? 0;
     return (incomingEdges.get(node.id) || [])
       .filter((edge) => nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) > 1)
-      .map((edge) => edge.source)
-      .sort()[0] ?? '';
+      .sort(
+        (a, b) =>
+          (depths.get(a.source) ?? 0) - (depths.get(b.source) ?? 0) ||
+          a.source.localeCompare(b.source)
+      )[0]?.source ?? '';
   };
 
-  // Une fille de contournement est "partagée" si AU MOINS UNE de ses
-  // liaisons de contournement (saut de niveau) est en mode 'shared' — le
-  // tronc commun de cette mère doit alors passer devant (colonne la plus
-  // externe) ses éventuelles sœurs en lien indépendant, pour ne jamais
-  // être traversé par leurs branches individuelles (voir plus bas).
-  const isSharedBypassDaughter = (node: Node) => {
+  /**
+   * Mode de la liaison qui détermine la position latérale de la fille.
+   * En cas de plusieurs mères indirectes, on retient la mère prioritaire
+   * (la plus haute, puis son id pour un ordre stable), comme pour
+   * `primaryBypassParent`.
+   */
+  const bypassRoutingMode = (node: Node): 'independent' | 'shared' => {
     const nodeDepth = depths.get(node.id) ?? 0;
-    return (incomingEdges.get(node.id) || []).some(
-      (edge) =>
-        nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) > 1 &&
-        (edge.data as any)?.routingMode === 'shared'
-    );
+    const primaryEdge = (incomingEdges.get(node.id) || [])
+      .filter((edge) => nodeDepth - (depths.get(edge.source) ?? nodeDepth - 1) > 1)
+      .sort(
+        (a, b) =>
+          (depths.get(a.source) ?? 0) - (depths.get(b.source) ?? 0) ||
+          a.source.localeCompare(b.source)
+      )[0];
+
+    return primaryEdge?.data?.routingMode === 'shared' ? 'shared' : 'independent';
   };
 
   const rebalancedX = new Map<string, number>();
@@ -314,15 +322,17 @@ export function getLayoutedElements(
     let leftCursor = centerLeft - NODE_SEP;
     let rightCursor = centerRight + NODE_SEP;
 
-    // Mère à index le plus petit → colonne la plus externe.
-    // À mère égale : filles en lien partagé placées APRÈS (donc plus à
-    // l'extérieur, voir la boucle forEach ci-dessous) les filles en lien
-    // indépendant — le tronc commun ne doit jamais être "coincé" entre le
-    // centre et une branche individuelle de la même mère.
+    // Les éléments sont posés du centre vers l'extérieur, à gauche comme à droite.
+    // On inverse donc l'ordre des index de mère : la mère la plus haute est posée
+    // en dernier et occupe toujours la colonne la plus externe. À mère égale,
+    // les liens partagés sont eux aussi posés en dernier, donc à l'extérieur des
+    // liens indépendants. Cela laisse les accès individuels côté intérieur sans
+    // modifier le tracé (tronc/branches) des liens partagés.
     const byOuterPriority = (a: Node, b: Node) =>
       indirectParentDepth(b) - indirectParentDepth(a) ||
       primaryBypassParent(a).localeCompare(primaryBypassParent(b)) ||
-      Number(isSharedBypassDaughter(a)) - Number(isSharedBypassDaughter(b)) ||
+      (bypassRoutingMode(a) === 'shared' ? 1 : 0) -
+        (bypassRoutingMode(b) === 'shared' ? 1 : 0) ||
       a.position.x - b.position.x;
 
     const left = rowNodes.filter((node) => sideById.get(node.id) === 'left').sort(byOuterPriority);
@@ -478,49 +488,31 @@ export function getLayoutedElements(
     return candidate;
   }
 
-  // Résolution UNIFIÉE du couloir X d'un contournement (partagé ou
-  // indépendant) : cherche d'abord un espace intérieur libre (si aucun
-  // côté n'est explicitement imposé), sinon retombe sur un couloir
-  // extérieur. Utilisée par les deux branches (tronc partagé et lien
-  // indépendant) pour qu'elles se partagent réellement les mêmes
-  // compteurs de couloirs — c'est ce qui garantit que le tronc partagé
-  // d'une mère (traité en dernier pour cette mère, voir le tri des edges
-  // plus bas) obtient toujours un couloir plus externe que les liens
-  // indépendants de la même mère du même côté.
-  function resolveBypassLaneX(
-    desiredX: number,
-    requestedSide: 'left' | 'right' | null | undefined,
+  /**
+   * Canal d'un lien indépendant placé entre la structure centrale et sa fille.
+   * Il reste ainsi plus intérieur que la colonne des liens partagés, qui est
+   * placée à l'extérieur des filles indépendantes.
+   * Les intervalles sont communs à toutes les lignes traversées : le canal ne
+   * peut donc pas couper un nœud intermédiaire.
+   */
+  function pickIndependentSideLaneX(
+    commonGaps: Interval[],
+    targetNode: Node,
+    side: 'left' | 'right',
     minDepth: number,
     maxDepthCrossed: number
-  ): number {
-    let commonGaps: Interval[] | null = null;
-    if (!requestedSide) {
-      for (let d = minDepth; d <= maxDepthCrossed; d++) {
-        const gaps = getInnerGapsForDepth(d);
-        commonGaps = commonGaps === null ? gaps : intersectIntervals(commonGaps, gaps);
-        if (commonGaps.length === 0) break;
-      }
-    }
+  ): number | null {
+    const { width } = getSize(targetNode);
+    const targetBoundary =
+      side === 'left'
+        ? targetNode.position.x + width + INNER_GAP_MARGIN
+        : targetNode.position.x - INNER_GAP_MARGIN;
 
-    const innerX =
-      !requestedSide && commonGaps && commonGaps.length > 0
-        ? pickInnerLaneX(commonGaps, desiredX, minDepth, maxDepthCrossed)
-        : null;
+    const sideGaps = commonGaps.filter(([start, end]) =>
+      side === 'left' ? start >= targetBoundary : end <= targetBoundary
+    );
 
-    if (innerX !== null) {
-      usedInnerLanes.push({ x: innerX, minDepth, maxDepth: maxDepthCrossed });
-      return innerX;
-    }
-
-    if (requestedSide === 'left' || (!requestedSide && outerLeftLaneCount <= outerRightLaneCount)) {
-      const x = globalMinX - OUTER_BYPASS_GAP - outerLeftLaneCount * OUTER_BYPASS_LANE_SPACING;
-      outerLeftLaneCount += 1;
-      return x;
-    }
-
-    const x = globalMaxX + OUTER_BYPASS_GAP + outerRightLaneCount * OUTER_BYPASS_LANE_SPACING;
-    outerRightLaneCount += 1;
-    return x;
+    return pickInnerLaneX(sideGaps, targetBoundary, minDepth, maxDepthCrossed);
   }
 
   const bypassExitCountByDepth = new Map<number, number>();
@@ -535,21 +527,8 @@ export function getLayoutedElements(
       const sideA = (layoutedNodes.find((node) => node.id === a.target)?.data as any)?.layoutSide;
       const sideB = (layoutedNodes.find((node) => node.id === b.target)?.data as any)?.layoutSide;
       if (sideA !== sideB) return String(sideA).localeCompare(String(sideB));
-
       const depthDifference = (depths.get(a.source) ?? 0) - (depths.get(b.source) ?? 0);
-      if (depthDifference !== 0) return -depthDifference;
-
-      // Même profondeur de mère : si c'est la MÊME mère, ses liens
-      // indépendants sont traités AVANT son lien partagé, pour que le
-      // tronc partagé (résolu en dernier, voir resolveBypassLaneX)
-      // obtienne toujours le couloir le plus externe parmi les siens.
-      if (a.source === b.source) {
-        const aShared = (a.data as any)?.routingMode === 'shared' ? 1 : 0;
-        const bShared = (b.data as any)?.routingMode === 'shared' ? 1 : 0;
-        return aShared - bShared;
-      }
-
-      return 0;
+      return -depthDifference;
     })
     .map((edge) => {
       const sourceDepth = depths.get(edge.source) ?? 0;
@@ -613,22 +592,59 @@ export function getLayoutedElements(
 
       const sourceBranchY = sourceRowBottom + sourceGapHalf - sourceOffset;
       const targetBranchY = targetRowTop - targetGapHalf + targetOffset;
-
-      const minDepth = sourceDepth + 1;
-      const maxDepthCrossed = targetDepth - 1;
+      // Les liens indépendants passent sous les sorties partagées, tout en
+      // restant dans l'espace libre de la rangée de leur mère.
+      const independentClearanceY =
+        routingMode === 'independent' ? sourceRowBottom + sourceGapHalf - 6 : undefined;
 
       let bypassX: number;
 
       if (sharedRouteKey) {
         const groupTargetIds = sharedGroupByKey.get(sharedRouteKey) ?? [edge.target];
-        const desiredX = getDaughtersCenterX(layoutedNodes, groupTargetIds);
-        bypassX = resolveBypassLaneX(desiredX, requestedSide, minDepth, maxDepthCrossed);
+        bypassX = getDaughtersCenterX(layoutedNodes, groupTargetIds);
       } else {
         const sourceNode = layoutedNodes.find((n) => n.id === edge.source);
         const sourceCenterX = sourceNode ? sourceNode.position.x + getSize(sourceNode).width / 2 : 0;
         const targetCenterX = targetNode ? targetNode.position.x + getSize(targetNode).width / 2 : 0;
         const desiredX = (sourceCenterX + targetCenterX) / 2;
-        bypassX = resolveBypassLaneX(desiredX, requestedSide, minDepth, maxDepthCrossed);
+
+        const minDepth = sourceDepth + 1;
+        const maxDepthCrossed = targetDepth - 1;
+        let commonGaps: Interval[] | null = null;
+        for (let d = minDepth; d <= maxDepthCrossed; d++) {
+          const gaps = getInnerGapsForDepth(d);
+          commonGaps = commonGaps === null ? gaps : intersectIntervals(commonGaps, gaps);
+          if (commonGaps.length === 0) break;
+        }
+
+        const innerX =
+          commonGaps && commonGaps.length > 0
+            ? routingMode === 'independent' && requestedSide && targetNode
+              ? pickIndependentSideLaneX(
+                  commonGaps,
+                  targetNode,
+                  requestedSide,
+                  minDepth,
+                  maxDepthCrossed
+                )
+              : !requestedSide
+                ? pickInnerLaneX(commonGaps, desiredX, minDepth, maxDepthCrossed)
+                : null
+            : null;
+
+        if (innerX !== null) {
+          bypassX = innerX;
+          usedInnerLanes.push({ x: innerX, minDepth, maxDepth: maxDepthCrossed });
+        } else if (
+          requestedSide === 'left' ||
+          (!requestedSide && outerLeftLaneCount <= outerRightLaneCount)
+        ) {
+          bypassX = globalMinX - OUTER_BYPASS_GAP - outerLeftLaneCount * OUTER_BYPASS_LANE_SPACING;
+          outerLeftLaneCount += 1;
+        } else {
+          bypassX = globalMaxX + OUTER_BYPASS_GAP + outerRightLaneCount * OUTER_BYPASS_LANE_SPACING;
+          outerRightLaneCount += 1;
+        }
       }
 
       const trunkTargetId = sharedRouteKey
@@ -643,6 +659,7 @@ export function getLayoutedElements(
           branchY: sourceBranchY,
           sourceBranchY,
           targetBranchY,
+          independentClearanceY,
           bypassX,
           isSharedTrunk,
           isSharedBranch: sharedRouteKey ? !isSharedTrunk : false,

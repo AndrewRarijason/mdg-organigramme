@@ -35,6 +35,7 @@ type SnapshotNode = {
     jobTitle: string;
     photoUrl: string;
     hierarchyLevel: number | null; // ← AJOUTÉ : conservé pour undo/redo pendant la session
+    layoutSide: 'left' | 'right' | null;
   };
 };
 
@@ -129,6 +130,7 @@ export function useOrganigramme() {
         jobTitle: (node.data as any)?.jobTitle || '',
         photoUrl: (node.data as any)?.photoUrl || '',
         hierarchyLevel: (node.data as any)?.hierarchyLevel ?? null, // ← AJOUTÉ
+        layoutSide: (node.data as any)?.layoutSide ?? null,
       },
     };
   }, []);
@@ -620,6 +622,8 @@ export function useOrganigramme() {
         jobTitle: string;
         photoFile: File | null;
         parentIds: string[];
+        layoutSide?: 'left' | 'right' | null;
+        routingMode?: 'independent' | 'shared';
         hierarchyLevel?: number | null; // ← Ajouté
       }
     ) => {
@@ -652,7 +656,7 @@ export function useOrganigramme() {
         type: 'orgEdge',
         animated: true,
         interactionWidth: 30,
-        data: { routingMode: (edgesRef.current.find((edge) => edge.source === pId && edge.target === id)?.data as any)?.routingMode ?? 'independent' },
+        data: { routingMode: updates.routingMode ?? 'independent' },
       }));
       const finalEdges = withoutOldEdges.concat(newEdges);
 
@@ -666,6 +670,7 @@ export function useOrganigramme() {
               lastName: updates.lastName,
               jobTitle: updates.jobTitle,
               hierarchyLevel: updates.hierarchyLevel ?? null, // ← Ajouté : applique le niveau forcé
+              layoutSide: updates.layoutSide ?? null,
               ...(photoUrl ? { photoUrl } : {}),
             },
           }

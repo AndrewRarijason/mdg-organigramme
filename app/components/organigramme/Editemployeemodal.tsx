@@ -107,6 +107,11 @@ export function EditEmployeeModal({
 
     const trimmedLevel = hierarchyLevel.trim();
     const parsedLevel = trimmedLevel === '' ? null : Number(trimmedLevel);
+    const hasLevelJump =
+      parsedLevel !== null &&
+      parentIds.some((id) => parsedLevel > (nodeLevels.get(id) || 1) + 1);
+
+    if (hasLevelJump && (!layoutSide || !routingMode)) return;
 
     await onSubmit(node.id, {
       firstName: firstName.trim(),
@@ -115,6 +120,8 @@ export function EditEmployeeModal({
       photoFile,
       parentIds,
       hierarchyLevel: parsedLevel && parsedLevel >= 1 ? parsedLevel : null, // ← AJOUTÉ
+      layoutSide: hasLevelJump ? layoutSide : null,
+      routingMode: hasLevelJump && routingMode ? routingMode : 'independent',
     });
   };
 
@@ -122,6 +129,11 @@ export function EditEmployeeModal({
 
   const descendantIds = getDescendantIds(node.id, edges);
   const selectableParents = allNodes.filter((n) => n.id !== node.id && !descendantIds.has(n.id));
+  const requestedLevel = hierarchyLevel.trim() === '' ? null : Number(hierarchyLevel);
+  const needsSideChoice =
+    requestedLevel !== null &&
+    requestedLevel >= 1 &&
+    parentIds.some((id) => requestedLevel > (nodeLevels.get(id) || 1) + 1);
 
   return (
     <>
@@ -278,6 +290,48 @@ export function EditEmployeeModal({
                     1 = sommet de l'organigramme. Si vide, la carte se replace automatiquement sous son supérieur.
                   </p>
                 </div>
+
+                {needsSideChoice && (
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-amber-900">
+                      Saut de niveau détecté : définissez le routage du lien.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([['independent', 'Indépendant'], ['shared', 'Partagé']] as const).map(
+                        ([mode, label]) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setRoutingMode(mode)}
+                            className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                              routingMode === mode
+                                ? 'bg-[#205170] text-white'
+                                : 'border border-slate-200 bg-white text-slate-700'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['left', 'right'] as const).map((side) => (
+                        <button
+                          key={side}
+                          type="button"
+                          onClick={() => setLayoutSide(side)}
+                          className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                            layoutSide === side
+                              ? 'bg-[#205170] text-white'
+                              : 'border border-slate-200 bg-white text-slate-700'
+                          }`}
+                        >
+                          {side === 'left' ? 'Gauche' : 'Droite'}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 <motion.button
                   type="submit"

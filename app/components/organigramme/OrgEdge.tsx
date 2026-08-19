@@ -95,6 +95,45 @@ function buildBypassPath(
   return segments.join(' ');
 }
 
+/**
+ * Lien indépendant avec saut de niveau : la mère est quittée verticalement,
+ * puis le palier horizontal est tracé dans son espace de rangée, sous les
+ * sorties partagées, avant la dernière descente vers la fille. Les liens
+ * partagés conservent buildBypassPath.
+ */
+function buildIndependentPath(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  clearanceY: number,
+  radius: number
+): string {
+  const dir = tx === sx ? 0 : tx > sx ? 1 : -1;
+  const r = Math.round(
+    Math.max(
+      0,
+      Math.min(
+        radius,
+        dir === 0 ? radius : Math.abs(tx - sx) / 2,
+        Math.abs(clearanceY - sy),
+        Math.abs(ty - clearanceY)
+      )
+    )
+  );
+
+  if (dir === 0) return `M ${sx},${sy} L ${tx},${ty}`;
+
+  return [
+    `M ${sx},${sy}`,
+    `L ${sx},${clearanceY - r}`,
+    `Q ${sx},${clearanceY} ${sx + r * dir},${clearanceY}`,
+    `L ${tx - r * dir},${clearanceY}`,
+    `Q ${tx},${clearanceY} ${tx},${clearanceY + r}`,
+    `L ${tx},${ty}`,
+  ].join(' ');
+}
+
 /** Branche seule d'un groupe partagé : (bypassX, targetBranchY) → fille. */
 function buildSharedBranchPath(
   tx: number,
@@ -138,6 +177,8 @@ export function OrgEdge({
 
   const bypassX = data?.bypassX as number | undefined;
   const isSharedBranch = data?.isSharedBranch === true;
+  const isIndependentBypass = data?.routingMode === 'independent' && bypassX !== undefined;
+  const independentClearanceY = data?.independentClearanceY as number | undefined;
   const sourceBranchY =
     (data?.sourceBranchY as number | undefined) ??
     (data?.branchY as number | undefined) ??
@@ -151,6 +192,11 @@ export function OrgEdge({
 
   if (bypassX !== undefined && isSharedBranch) {
     path = buildSharedBranchPath(tx, ty, tby, Math.round(bypassX), CORNER_RADIUS);
+  } else if (isIndependentBypass) {
+    // Le palier reste dans la rangée de la mère et ne descend donc pas vers
+    // la rangée de la fille avant d'être aligné sur son axe X.
+    const clearanceY = Math.min(Math.max(independentClearanceY ?? sby, sy), ty);
+    path = buildIndependentPath(sx, sy, tx, ty, Math.round(clearanceY), CORNER_RADIUS);
   } else if (bypassX !== undefined) {
     path = buildBypassPath(sx, sy, tx, ty, sby, tby, Math.round(bypassX), CORNER_RADIUS);
   } else {
