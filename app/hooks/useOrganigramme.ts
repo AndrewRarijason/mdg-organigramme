@@ -791,31 +791,49 @@ export function useOrganigramme() {
           await supabase.from('nodes').delete().eq('project_id', projectId);
         }
 
-        // 2. Synchronisation des relations (edges)
-        const { error: deleteEdgeErr } = await supabase.from('edges').delete().eq('project_id', projectId);
-        if (deleteEdgeErr) throw deleteEdgeErr;
+        // 2. Synchronisation des relations (edges) — upsert + purge ciblée,
+        //    jamais de delete-all avant d'être sûr que l'insert va passer.
+        const dedupedEdges = Array.from(
+          new Map(edges.map((e) => [`${e.source}::${e.target}`, e])).values()
+        );
 
-        if (edges.length > 0) {
-          const payloadEdges = edges.map((e) => ({
+        if (dedupedEdges.length > 0) {
+          const payloadEdges = dedupedEdges.map((e) => ({
             project_id: projectId,
             source_id: e.source,
             target_id: e.target,
             routing_mode: (e.data as any)?.routingMode ?? 'independent',
             is_shortest_distance: (e.data as any)?.isShortestDistance === true,
           }));
-          const { error: edgeErr } = await supabase.from('edges').insert(payloadEdges);
-          if (edgeErr) throw edgeErr;
+
+          // upsert sur la contrainte unique (source_id, target_id) : ne supprime rien,
+          // donc aucun risque de perte si une ligne pose problème.
+          const { error: upsertErr } = await supabase
+            .from('edges')
+            .upsert(payloadEdges, { onConflict: 'source_id,target_id' });
+          if (upsertErr) throw upsertErr;
+
+          // Purge uniquement les liaisons qui ne sont plus dans l'état courant
+          const pairs = dedupedEdges.map((e) => `(${e.source},${e.target})`).join(',');
+          await supabase.rpc('noop'); // placeholder si vous préférez une fonction dédiée
+          const { data: existing } = await supabase
+            .from('edges')
+            .select('id, source_id, target_id')
+            .eq('project_id', projectId);
+          const validKeys = new Set(dedupedEdges.map((e) => `${e.source}::${e.target}`));
+          const staleIds = (existing || [])
+            .filter((row) => !validKeys.has(`${row.source_id}::${row.target_id}`))
+            .map((row) => row.id);
+          if (staleIds.length > 0) {
+            await supabase.from('edges').delete().in('id', staleIds);
+          }
+        } else {
+          await supabase.from('edges').delete().eq('project_id', projectId);
         }
-
-        await supabase
-          .from('projects')
-          .update({ title: projectTitle, updated_at: new Date().toISOString() })
-          .eq('id', projectId);
-
-        if (onSaved) await onSaved();
-        if (!options?.silent) toast.success('Organigramme enregistré avec succès !');
       } catch (err: any) {
+        console.error('[saveProject] échec de sauvegarde :', err);
         if (!options?.silent) toast.error('Erreur lors de la sauvegarde : ' + err.message);
+        else toast.error('Sauvegarde automatique interrompue — enregistrez manuellement.', { duration: 5000 });
       } finally {
         setSaving(false);
       }
