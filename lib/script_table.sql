@@ -317,3 +317,10 @@ ALTER TABLE edges ADD COLUMN IF NOT EXISTS routing_mode TEXT NOT NULL DEFAULT 'i
 
 -- Optimisation facultative des sauts d'index : utilise le canal libre le plus proche.
 ALTER TABLE edges ADD COLUMN IF NOT EXISTS is_shortest_distance BOOLEAN NOT NULL DEFAULT FALSE;
+
+
+---- 19/08 ----
+CREATE POLICY "Owner update edges" ON edges
+  FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM projects p WHERE p.id = edges.project_id AND p.user_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM projects p WHERE p.id = edges.project_id AND p.user_id = auth.uid()));

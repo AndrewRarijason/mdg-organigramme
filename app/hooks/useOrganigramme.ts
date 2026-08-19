@@ -806,16 +806,12 @@ export function useOrganigramme() {
             is_shortest_distance: (e.data as any)?.isShortestDistance === true,
           }));
 
-          // upsert sur la contrainte unique (source_id, target_id) : ne supprime rien,
-          // donc aucun risque de perte si une ligne pose problème.
           const { error: upsertErr } = await supabase
             .from('edges')
             .upsert(payloadEdges, { onConflict: 'source_id,target_id' });
           if (upsertErr) throw upsertErr;
 
           // Purge uniquement les liaisons qui ne sont plus dans l'état courant
-          const pairs = dedupedEdges.map((e) => `(${e.source},${e.target})`).join(',');
-          await supabase.rpc('noop'); // placeholder si vous préférez une fonction dédiée
           const { data: existing } = await supabase
             .from('edges')
             .select('id, source_id, target_id')
