@@ -32,3 +32,14 @@ body {
 .animate-spin-slow {
   animation: spin-slow 30s linear infinite;
 }
+
+/* iOS Safari zoome automatiquement sur un champ dont le texte fait moins
+   de 16px : sur écran tactile on force 16px (règle hors @layer, elle
+   l'emporte donc sur les classes Tailwind). */
+@media (pointer: coarse) {
+  input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

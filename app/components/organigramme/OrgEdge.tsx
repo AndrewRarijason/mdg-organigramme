@@ -194,8 +194,6 @@ export function OrgEdge({
   if (bypassX !== undefined && isSharedBranch) {
     path = buildSharedBranchPath(tx, ty, tby, Math.round(bypassX), CORNER_RADIUS);
   } else if (isIndependentBypass && !isShortestDistance) {
-    // Le palier reste dans la rangée de la mère et ne descend donc pas vers
-    // la rangée de la fille avant d'être aligné sur son axe X.
     const clearanceY = Math.min(Math.max(independentClearanceY ?? sby, sy), ty);
     path = buildIndependentPath(sx, sy, tx, ty, Math.round(clearanceY), CORNER_RADIUS);
   } else if (bypassX !== undefined) {

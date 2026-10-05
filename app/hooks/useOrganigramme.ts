@@ -17,6 +17,7 @@ import { domToPng } from 'modern-screenshot';
 import jsPDF from 'jspdf';
 import { supabase } from '@/lib/supabaseClient';
 import { getLayoutedElements } from '@/app/lib/autoLayout';
+import { toExportNodes, type PdfExportOptions } from '@/app/lib/pdfLayout';
 
 /**
  * Toute la logique du canevas : chargement/sauvegarde des personnes et
@@ -71,6 +72,17 @@ export function useOrganigramme() {
   const pastRef = useRef<FlowSnapshot[]>([]);
   const futureRef = useRef<FlowSnapshot[]>([]);
   const textEditLockTimerRef = useRef<number | null>(null);
+
+  // Compteur des modifications faites par l'utilisateur. Une sauvegarde
+  // n'est considérée comme une "modification" du projet (date affichée
+  // dans "Mes projets") que si ce compteur a avancé depuis la dernière
+  // sauvegarde : la sauvegarde auto qui suit un simple chargement
+  // (re-mesure des cartes, recalcul de disposition) ne compte pas.
+  const revisionRef = useRef(0);
+  const savedRevisionRef = useRef(0);
+  const markModified = useCallback(() => {
+    revisionRef.current += 1;
+  }, []);
 
   // Empêche de committer plusieurs fois pendant un même geste continu
   // (drag ou resize) : on ne veut capturer le snapshot "avant" qu'une
@@ -170,12 +182,13 @@ export function useOrganigramme() {
   const commitHistory = useCallback(
     (snapshot?: FlowSnapshot) => {
       if (isRestoringRef.current) return;
+      markModified();
       const snap = snapshot ?? makeSnapshot();
       pastRef.current = [...pastRef.current, snap].slice(-HISTORY_LIMIT);
       futureRef.current = [];
       updateHistoryFlags();
     },
-    [makeSnapshot, updateHistoryFlags]
+    [makeSnapshot, updateHistoryFlags, markModified]
   );
 
   const restoreSnapshot = useCallback(
@@ -193,22 +206,24 @@ export function useOrganigramme() {
   const undo = useCallback(() => {
     const previous = pastRef.current[pastRef.current.length - 1];
     if (!previous) return;
+    markModified();
     const current = makeSnapshot();
     pastRef.current = pastRef.current.slice(0, -1);
     futureRef.current = [current, ...futureRef.current].slice(0, HISTORY_LIMIT);
     restoreSnapshot(previous);
     updateHistoryFlags();
-  }, [makeSnapshot, restoreSnapshot, updateHistoryFlags]);
+  }, [makeSnapshot, restoreSnapshot, updateHistoryFlags, markModified]);
 
   const redo = useCallback(() => {
     const next = futureRef.current[0];
     if (!next) return;
+    markModified();
     const current = makeSnapshot();
     futureRef.current = futureRef.current.slice(1);
     pastRef.current = [...pastRef.current, current].slice(-HISTORY_LIMIT);
     restoreSnapshot(next);
     updateHistoryFlags();
-  }, [makeSnapshot, restoreSnapshot, updateHistoryFlags]);
+  }, [makeSnapshot, restoreSnapshot, updateHistoryFlags, markModified]);
 
   const scheduleTextEditHistoryCommit = useCallback(() => {
     if (textEditLockTimerRef.current === null) {
@@ -259,6 +274,7 @@ export function useOrganigramme() {
     setNodes([]);
     setEdges([]);
     clearHistory();
+    savedRevisionRef.current = revisionRef.current;
     gestureCommitPendingRef.current = false;
     pendingRelayoutRef.current = null;
   }, [clearHistory]);
@@ -267,11 +283,12 @@ export function useOrganigramme() {
   const handleNodeDataChange = useCallback(
     (id: string, field: string, value: string) => {
       scheduleTextEditHistoryCommit();
+      markModified();
       setNodes((nds) =>
         nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, [field]: value } } : node))
       );
     },
-    [scheduleTextEditHistoryCommit]
+    [scheduleTextEditHistoryCommit, markModified]
   );
 
   const handlePhotoUpload = useCallback(
@@ -311,6 +328,9 @@ export function useOrganigramme() {
       supabase.from('nodes').select('*').eq('project_id', pId),
       supabase.from('edges').select('*').eq('project_id', pId),
     ]);
+
+    // Un projet fraîchement chargé est considéré comme "à jour"
+    savedRevisionRef.current = revisionRef.current;
 
     if (!dbNodes || dbNodes.length === 0) {
       setNodes([]);
@@ -755,11 +775,12 @@ export function useOrganigramme() {
     async (
       projectId: string | null,
       projectTitle: string,
-      onSaved?: () => Promise<unknown> | unknown,
+      onSaved?: (info: { contentChanged: boolean }) => Promise<unknown> | unknown,
       options?: { silent?: boolean }
     ) => {
       if (!projectId) return;
       setSaving(true);
+      const revision = revisionRef.current;
       try {
         // 1. Mise à jour des nœuds avec le niveau hiérarchique
         const payloadNodes = nodes.map((n) => ({
@@ -826,6 +847,11 @@ export function useOrganigramme() {
         } else {
           await supabase.from('edges').delete().eq('project_id', projectId);
         }
+
+        // 3. Mise à jour des infos du projet (titre, date de modification)
+        const contentChanged = revision !== savedRevisionRef.current;
+        savedRevisionRef.current = revision;
+        await onSaved?.({ contentChanged });
       } catch (err: any) {
         console.error('[saveProject] échec de sauvegarde :', err);
         if (!options?.silent) toast.error('Erreur lors de la sauvegarde : ' + err.message);
@@ -839,7 +865,7 @@ export function useOrganigramme() {
 
   // --- Export PDF (via Puppeteer côté serveur) ---
   const exportPDF = useCallback(
-    async (projectTitle: string) => {
+    async (projectTitle: string, options: PdfExportOptions) => {
       if (exportingPdf) return;
 
       setExportingPdf(true);
@@ -856,23 +882,11 @@ export function useOrganigramme() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            nodes: nodesRef.current.map((n) => ({
-              id: n.id,
-              type: n.type,
-              position: n.position,
-              style: {
-                width: (typeof n.style?.width === 'number' ? n.style.width : undefined) || n.measured?.width || 200,
-                height: (typeof n.style?.height === 'number' ? n.style.height : undefined) || n.measured?.height || 130,
-              },
-              data: {
-                firstName: (n.data as any)?.firstName || '',
-                lastName: (n.data as any)?.lastName || '',
-                jobTitle: (n.data as any)?.jobTitle || '',
-                photoUrl: (n.data as any)?.photoUrl || '',
-              },
-            })),
+            nodes: toExportNodes(nodesRef.current),
             edges: edgesRef.current,
             title: projectTitle,
+            format: options.format,
+            mode: options.mode,
           }),
         });
 
@@ -887,7 +901,9 @@ export function useOrganigramme() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = projectTitle.toLowerCase().replace(/\s+/g, '-') + '.pdf';
+        a.download =
+          projectTitle.toLowerCase().replace(/\s+/g, '-') +
+          `-${options.format}${options.mode === 'tiled' && options.format !== 'A4' ? '-feuilles-a4' : ''}.pdf`;
         document.body.appendChild(a);
         a.click();
         a.remove();

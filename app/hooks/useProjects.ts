@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
@@ -25,6 +25,16 @@ export function useProjects(
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Valeurs courantes lisibles depuis les callbacks différés (sauvegarde auto)
+  const projectIdRef = useRef(projectId);
+  const projectTitleRef = useRef(projectTitle);
+  const projectListRef = useRef(projectList);
+  useEffect(() => {
+    projectIdRef.current = projectId;
+    projectTitleRef.current = projectTitle;
+    projectListRef.current = projectList;
+  }, [projectId, projectTitle, projectList]);
+
   const refreshProjectList = useCallback(async () => {
     const { data, error } = await supabase
       .from('projects')
@@ -38,6 +48,37 @@ export function useProjects(
     setProjectList(data || []);
     return data || [];
   }, []);
+
+  /**
+   * Appelé après chaque sauvegarde réussie de l'organigramme : enregistre
+   * le titre et la date/heure de modification du projet si l'utilisateur
+   * a réellement modifié quelque chose (contenu ou titre).
+   */
+  const markProjectSaved = useCallback(
+    async ({ contentChanged }: { contentChanged: boolean }) => {
+      const id = projectIdRef.current;
+      if (!id) return;
+      const stored = projectListRef.current.find((p) => p.id === id);
+      const title = projectTitleRef.current;
+      const titleChanged = !!stored && title.trim() !== '' && title !== stored.title;
+      if (!contentChanged && !titleChanged) return;
+
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          ...(titleChanged ? { title } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erreur mise à jour du projet:', error.message);
+        return;
+      }
+      await refreshProjectList();
+    },
+    [refreshProjectList]
+  );
 
   const openProject = useCallback(
     async (project: { id: string; title: string }) => {
@@ -126,6 +167,7 @@ export function useProjects(
     setDeleteTarget,
     deleting,
     refreshProjectList,
+    markProjectSaved,
     openProject,
     createNewProject,
     confirmDeleteProject,

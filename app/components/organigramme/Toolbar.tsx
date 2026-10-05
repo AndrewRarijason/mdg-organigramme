@@ -100,20 +100,20 @@ export function Toolbar({
       />
 
       {/* ===== Zone Gauche : Identité du projet ===== */}
-      <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0 min-w-0">
+      <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 sm:flex-none min-w-0">
         {/* Marque / logo miniature */}
         <div className="hidden sm:flex w-9 h-9 rounded-xl items-center justify-center shrink-0 bg-white/10 border border-white/15 shadow-inner">
           <Network className="w-4.5 h-4.5 text-white" />
         </div>
 
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col flex-1 sm:flex-none min-w-0">
           <div className="relative flex items-center min-w-0 group">
             <input
               type="text"
               value={projectTitle}
               onChange={(e) => onProjectTitleChange(e.target.value)}
               placeholder="Nom du projet"
-              className="text-sm sm:text-base font-bold text-white placeholder-white/40 bg-transparent px-1 py-0.5 -mx-1 rounded-lg border-b-2 border-transparent hover:border-white/25 focus:border-white/70 focus:bg-white/10 focus:outline-none transition-all duration-200 w-[180px] sm:w-[220px] lg:w-[280px] truncate"
+              className="text-sm sm:text-base font-bold text-white placeholder-white/40 bg-transparent px-1 py-0.5 -mx-1 rounded-lg border-b-2 border-transparent hover:border-white/25 focus:border-white/70 focus:bg-white/10 focus:outline-none transition-all duration-200 w-full min-w-0 sm:w-[220px] lg:w-[280px] truncate"
             />
           </div>
           <span className="hidden sm:block text-[11px] text-white/50 font-medium px-1 -mt-0.5">
@@ -170,14 +170,22 @@ export function Toolbar({
           )}
         </AnimatePresence>
 
-        {/* Progrès d'export PDF */}
+        {/* Progrès d'export PDF (sur mobile : barre fine sous la barre d'outils) */}
         {exportingPdf && (
-          <div className="min-w-[110px] sm:min-w-[180px] px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/20 bg-white/10">
+          <div className="sm:hidden absolute left-0 right-0 bottom-0 h-[3px] bg-white/15 z-10" aria-hidden>
+            <motion.div
+              className="h-full bg-white"
+              animate={{ width: `${exportPdfProgress}%` }}
+              transition={{ duration: 0.2 }}
+            />
+          </div>
+        )}
+        {exportingPdf && (
+          <div className="hidden sm:block min-w-[180px] px-3 py-1.5 rounded-xl border border-white/20 bg-white/10">
             <div className="text-[10px] font-bold mb-1 flex items-center justify-between text-white/90">
               <span className="flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                <span className="hidden sm:inline">Export PDF</span>
-                <span className="sm:hidden">PDF</span>
+                <span>Export PDF</span>
               </span>
               <span>{Math.round(exportPdfProgress)}%</span>
             </div>
@@ -221,7 +229,7 @@ export function Toolbar({
         {/* Bouton Ajouter — seule touche de couleur vive de la barre */}
         <motion.button
           onClick={onAddPerson}
-          className="px-3 sm:px-4 py-2 bg-white text-[#123549] rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:shadow-md hover:bg-white/90 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+          className="p-2 sm:px-4 sm:py-2 bg-white text-[#123549] rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:shadow-md hover:bg-white/90 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           title="Ajouter un employé"
@@ -235,7 +243,7 @@ export function Toolbar({
           onClick={onSave}
           disabled={saving}
           title="Enregistrer"
-          className="px-3 sm:px-4 py-2 bg-white/10 text-white border border-white/20 rounded-xl text-xs sm:text-sm font-semibold hover:bg-white/20 transition-all disabled:opacity-50 flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+          className="p-2 sm:px-4 sm:py-2 bg-white/10 text-white border border-white/20 rounded-xl text-xs sm:text-sm font-semibold hover:bg-white/20 transition-all disabled:opacity-50 flex items-center gap-1.5 sm:gap-2 cursor-pointer"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
         >
@@ -251,7 +259,7 @@ export function Toolbar({
             type="button"
             onClick={() => setActionsOpen((v) => !v)}
             title="Plus d'actions"
-            className={`flex items-center gap-0.5 p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer border ${
+            className={`relative flex items-center gap-0.5 p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer border ${
               actionsOpen
                 ? 'bg-white/20 border-white/30 text-white'
                 : 'bg-white/10 border-white/15 text-white/80 hover:bg-white/20 hover:text-white'
@@ -259,7 +267,8 @@ export function Toolbar({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            <MoreVertical className="w-4 h-4" />
+            {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin sm:hidden" /> : null}
+            <MoreVertical className={`w-4 h-4 ${exportingPdf ? 'hidden sm:block' : ''}`} />
           </motion.button>
 
           <AnimatePresence>
@@ -269,7 +278,7 @@ export function Toolbar({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 8 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute right-0 mt-2 w-60 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-900/20 z-50 overflow-hidden p-1.5"
+                className="absolute right-0 mt-2 w-60 max-w-[calc(100vw-1.5rem)] bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-900/20 z-50 overflow-hidden p-1.5"
               >
                 <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Projets & Gestion

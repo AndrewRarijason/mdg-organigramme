@@ -144,14 +144,14 @@ export function EditEmployeeModal({
       <AnimatePresence>
         {open && (
           <motion.div
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           >
             <motion.div
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden border border-slate-200/80"
+              className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-md max-h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200/80"
               initial={{ scale: 0.9, y: 30, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 30, opacity: 0 }}
@@ -159,7 +159,7 @@ export function EditEmployeeModal({
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header Moderne & Stylisé */}
-              <div className="relative p-6 bg-gradient-to-br from-[#205170] to-[#123746] text-white overflow-hidden flex items-center justify-between shadow-md">
+              <div className="relative p-4 sm:p-6 bg-gradient-to-br from-[#205170] to-[#123746] text-white overflow-hidden flex items-center justify-between shadow-md shrink-0">
                 {/* Effets lumineux d'arrière-plan */}
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
                 <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
@@ -192,7 +192,7 @@ export function EditEmployeeModal({
               </div>
 
               {/* Formulaire */}
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                   <div className="relative group">
                     <label className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white border-2 border-dashed border-indigo-200 flex-shrink-0 cursor-pointer flex items-center justify-center hover:border-indigo-500 transition-all shadow-sm group">

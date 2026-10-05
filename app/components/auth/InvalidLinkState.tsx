@@ -20,7 +20,7 @@ export function InvalidLinkState() {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="w-full max-w-md bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/20 text-center"
+        className="w-full max-w-md bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 sm:p-8 border border-white/20 text-center"
       >
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-100 text-red-600 mb-4">
           <AlertCircle className="w-7 h-7" />

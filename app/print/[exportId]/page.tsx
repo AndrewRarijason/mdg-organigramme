@@ -8,10 +8,12 @@ import '@xyflow/react/dist/style.css';
 import { nodeTypes } from '@/app/components/organigramme/PersonneNode';
 import { edgeTypes } from '@/app/components/organigramme/OrgEdge';
 import { ExportModeProvider } from '@/app/lib/exportMode';
-
-const MARGIN = 40;
-const HEADER_HEIGHT = 56;
-const LOGO_SECTION_HEIGHT = 56; // Hauteur dédiée uniquement au logo
+import {
+    PRINT_MARGIN as MARGIN,
+    PRINT_HEADER_HEIGHT as HEADER_HEIGHT,
+    PRINT_LOGO_SECTION_HEIGHT as LOGO_SECTION_HEIGHT,
+    computeExportBounds,
+} from '@/app/lib/pdfLayout';
 
 function noop() { }
 
@@ -28,39 +30,6 @@ function hydrateNodes(rawNodes: any[]): Node[] {
             onDeleteNode: noop,
         },
     }));
-}
-
-function computeBounds(nodes: Node[], edges: Edge[]) {
-    if (nodes.length === 0) return { minX: 0, minY: 0, width: 800, height: 600 };
-
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    nodes.forEach((n) => {
-        const width = (typeof n.style?.width === 'number' ? n.style.width : undefined) || 200;
-        const height = (typeof n.style?.height === 'number' ? n.style.height : undefined) || 130;
-        minX = Math.min(minX, n.position.x);
-        minY = Math.min(minY, n.position.y);
-        maxX = Math.max(maxX, n.position.x + width);
-        maxY = Math.max(maxY, n.position.y + height);
-    });
-
-    edges.forEach((e) => {
-        const bypassX = e.data?.bypassX as number | undefined;
-        if (typeof bypassX === 'number' && !isNaN(bypassX)) {
-            minX = Math.min(minX, bypassX);
-            maxX = Math.max(maxX, bypassX);
-        }
-    });
-
-    return {
-        minX,
-        minY,
-        width: Math.ceil(maxX - minX) + MARGIN * 2,
-        height: Math.ceil(maxY - minY) + MARGIN * 2,
-    };
 }
 
 export default function PrintPage() {
@@ -91,7 +60,7 @@ export default function PrintPage() {
     }, []);
 
     const bounds = useMemo(
-        () => (nodes && edges ? computeBounds(nodes, edges) : null),
+        () => (nodes && edges ? computeExportBounds(nodes, edges) : null),
         [nodes, edges]
     );
 

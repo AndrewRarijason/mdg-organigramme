@@ -17,6 +17,7 @@ import { ConfirmDeleteDialog } from '@/app/components/organigramme/ConfirmDelete
 import { AddEmployeeModal, EmployeeFormData } from '@/app/components/organigramme/AddEmployeeModal';
 import { EmployeeListModal } from '@/app/components/organigramme/Employeelistmodal';
 import { EditEmployeeModal, EmployeeUpdateData } from '@/app/components/organigramme/Editemployeemodal';
+import { ExportPdfModal } from '@/app/components/organigramme/ExportPdfModal';
 
 import { useAuthSession } from '@/app/hooks/useAuthSession';
 import { useOrganigramme } from '@/app/hooks/useOrganigramme';
@@ -32,13 +33,18 @@ export default function OrganigrammePage() {
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [employeeDeleteTarget, setEmployeeDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [isInteractive, setIsInteractive] = useState(false);
+  const [exportPdfOpen, setExportPdfOpen] = useState(false);
 
   const organigramme = useOrganigramme();
   const { session, authLoading } = useAuthSession(() => organigramme.resetCanvas());
 
   const projects = useProjects(
     session,
-    (projectId) => organigramme.loadNodesFromDb(projectId),
+    async (projectId) => {
+      await organigramme.loadNodesFromDb(projectId);
+      // Recentre la vue sur le projet ouvert (indispensable sur petit écran)
+      organigramme.rfInstance?.fitView({ padding: 0.15 });
+    },
     () => organigramme.resetCanvas()
   );
 
@@ -46,9 +52,10 @@ export default function OrganigrammePage() {
     enabled: !!projects.projectId,
     nodes: organigramme.nodes,
     edges: organigramme.edges,
+    title: projects.projectTitle,
     resetKey: projects.projectId,
     onSave: () =>
-      organigramme.saveProject(projects.projectId, projects.projectTitle, projects.refreshProjectList, {
+      organigramme.saveProject(projects.projectId, projects.projectTitle, projects.markProjectSaved, {
         silent: true,
       }),
     delayMs: 4000,
@@ -97,7 +104,7 @@ export default function OrganigrammePage() {
 
   if (authLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+      <div className="w-full h-dvh flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
         <motion.div
           className="text-slate-600 text-sm font-medium"
           initial={{ opacity: 0 }}
@@ -115,7 +122,7 @@ export default function OrganigrammePage() {
   }
 
   return (
-    <div className="w-full h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 font-sans overflow-hidden">
+    <div className="w-full h-dvh flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 font-sans overflow-hidden">
       <Toaster
         position="top-center"
         containerStyle={{ top: 75 }}
@@ -141,18 +148,18 @@ export default function OrganigrammePage() {
         onRedo={organigramme.redo}
         canUndo={organigramme.canUndo}
         canRedo={organigramme.canRedo}
-        onSave={() => organigramme.saveProject(projects.projectId, projects.projectTitle, projects.refreshProjectList)}
+        onSave={() => organigramme.saveProject(projects.projectId, projects.projectTitle, projects.markProjectSaved)}
         saving={organigramme.saving}
         autoSaving={autoSaving}
         lastAutoSavedAt={lastAutoSavedAt}
-        onExportPDF={() => organigramme.exportPDF(projects.projectTitle)}
+        onExportPDF={() => setExportPdfOpen(true)}
         exportingPdf={organigramme.exportingPdf}
         exportPdfProgress={organigramme.exportPdfProgress}
         onOpenAccount={() => setAccountOpen(true)}
       />
 
       {/* Zone Canvas */}
-      <div className="flex-1 w-full h-full relative" ref={organigramme.printRef}>
+      <div className="flex-1 min-h-0 w-full relative" ref={organigramme.printRef}>
         <img
           src="/mdg-logo/mdgservices-logo.png"
           alt="Logo MDG Services"
@@ -173,6 +180,9 @@ export default function OrganigrammePage() {
             edgeTypes={edgeTypes}
             deleteKeyCode={['Backspace', 'Delete']}
             fitView
+            fitViewOptions={{ padding: 0.15 }}
+            // Permet d'afficher tout l'organigramme, même sur un écran de téléphone
+            minZoom={0.05}
 
             // --- On lie ces propriétés à notre état local ---
             nodesDraggable={isInteractive}
@@ -274,6 +284,14 @@ export default function OrganigrammePage() {
         onCreateNew={projects.createNewProject}
         onOpenProject={projects.openProject}
         onRequestDelete={projects.setDeleteTarget}
+      />
+
+      <ExportPdfModal
+        open={exportPdfOpen}
+        onClose={() => setExportPdfOpen(false)}
+        nodes={organigramme.nodes}
+        edges={organigramme.edges}
+        onExport={(options) => organigramme.exportPDF(projects.projectTitle, options)}
       />
 
       <AddEmployeeModal

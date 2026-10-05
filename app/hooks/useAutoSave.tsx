@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 /**
  * Déclenche `onSave` automatiquement après un temps d'inactivité
- * (`delayMs`) suivant toute modification de `nodes`/`edges`, tant que
+ * (`delayMs`) suivant toute modification de `nodes`/`edges`/`title`, tant que
  * `enabled` est vrai. Ignore le tout premier rendu suivant un changement
  * de `resetKey` (= ouverture/chargement d'un projet), pour ne pas
  * déclencher une sauvegarde juste parce qu'on vient de CHARGER des
@@ -14,6 +14,7 @@ export function useAutoSave({
   enabled,
   nodes,
   edges,
+  title,
   resetKey,
   onSave,
   delayMs = 4000,
@@ -21,6 +22,7 @@ export function useAutoSave({
   enabled: boolean;
   nodes: unknown;
   edges: unknown;
+  title?: string;
   resetKey: string | null;
   onSave: () => Promise<unknown> | unknown;
   delayMs?: number;
@@ -59,7 +61,7 @@ export function useAutoSave({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, enabled, delayMs]);
+  }, [nodes, edges, title, enabled, delayMs]);
 
   return { lastAutoSavedAt, autoSaving };
 }

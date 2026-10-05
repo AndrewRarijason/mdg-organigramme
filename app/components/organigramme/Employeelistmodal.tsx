@@ -30,14 +30,14 @@ export function EmployeeListModal({
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden border border-slate-200/80"
+            className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg max-h-[92dvh] sm:max-h-[85vh] flex flex-col overflow-hidden border border-slate-200/80"
             initial={{ scale: 0.9, y: 30, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.9, y: 30, opacity: 0 }}
@@ -45,7 +45,7 @@ export function EmployeeListModal({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Moderne & Stylisé */}
-            <div className="relative p-6 bg-gradient-to-br from-[#205170] to-[#123746] text-white overflow-hidden flex items-center justify-between shadow-md">
+            <div className="relative p-4 sm:p-6 bg-gradient-to-br from-[#205170] to-[#123746] text-white overflow-hidden flex items-center justify-between shadow-md shrink-0">
               {/* Effets lumineux d'arrière-plan */}
               <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
               <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
@@ -82,7 +82,7 @@ export function EmployeeListModal({
 
             {/* Bouton d'ajout d'employé en haut de la liste */}
             {onAddEmployee && (
-              <div className="p-6 pb-2">
+              <div className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 shrink-0">
                 <motion.button
                   onClick={() => {
                     onClose();
@@ -101,7 +101,7 @@ export function EmployeeListModal({
             )}
 
             {/* Liste des employés avec défilement (Scrollbar) */}
-            <div className="flex-1 overflow-y-auto p-6 pt-3 flex flex-col gap-3 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 pt-3 sm:p-6 sm:pt-3 flex flex-col gap-3 custom-scrollbar pb-[max(1rem,env(safe-area-inset-bottom))]">
               {sortedNodes.length === 0 && (
                 <div className="py-12 text-center text-xs md:text-sm text-slate-400 font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   Aucun employé pour le moment

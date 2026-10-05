@@ -97,7 +97,7 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col md:flex-row overflow-hidden">
+    <div className="min-h-dvh w-full flex flex-col md:flex-row overflow-hidden">
       <div
         className="hidden md:flex md:w-2/3 relative bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/hierarchievf.jpg')" }}
@@ -136,7 +136,7 @@ export default function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
         </motion.div>
       </div>
 
-      <div className="flex-1 md:w-1/3 bg-white flex items-center justify-center p-4 md:p-8 min-h-screen">
+      <div className="flex-1 md:w-1/3 bg-white flex items-center justify-center p-4 md:p-8 min-h-dvh">
         <motion.div
           variants={cardVariants}
           initial="hidden"

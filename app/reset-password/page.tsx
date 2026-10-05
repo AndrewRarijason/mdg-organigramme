@@ -44,7 +44,7 @@ export default function ResetPasswordPage() {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="relative w-full max-w-md bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/20 transition-all duration-300"
+        className="relative w-full max-w-md bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 sm:p-8 border border-white/20 transition-all duration-300"
       >
         <div className="text-center mb-8">
           <motion.div

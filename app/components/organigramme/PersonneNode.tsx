@@ -19,6 +19,11 @@ import { useExportMode } from '@/app/lib/exportMode';
  *   points d'ancrage), pour rester cohérents avec les liaisons.
  * - Un badge discret indique le nombre de subordonnés directs, pour lire
  *   la taille de chaque équipe sans avoir à compter les branches.
+ *
+ * Les dimensions de la carte ne dépendent volontairement PAS de la taille
+ * de l'écran : sur mobile c'est le zoom du canevas qui s'adapte. Ainsi la
+ * disposition (et les hauteurs enregistrées en base) reste identique sur
+ * téléphone, sur ordinateur et dans l'export PDF.
  */
 export const PersonNode = ({
   data,
@@ -53,7 +58,7 @@ export const PersonNode = ({
 
   return (
     <motion.div
-      className={`w-full h-auto min-w-[160px] md:min-w-[200px] box-border rounded-2xl p-3 md:p-4 flex flex-col items-center gap-2 relative group border transition-colors duration-300 ${isTopLevel
+      className={`w-full h-auto min-w-[200px] box-border rounded-2xl p-4 flex flex-col items-center gap-2 relative group border transition-colors duration-300 ${isTopLevel
           ? 'bg-[#205170] border-[#163c53] shadow-lg shadow-[#205170]/20'
           : 'bg-white/95 backdrop-blur-md border-slate-200/80 shadow-sm hover:border-[#205170]/40'
         } ${selected ? 'border-[#205170] ring-2 ring-[#205170]/25' : ''}`}
@@ -90,35 +95,35 @@ export const PersonNode = ({
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-3 !h-3 md:!w-3.5 md:!h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
+          className="!w-3.5 !h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
         />
       )}
       {showBottomHandle && (
         <Handle
           type="source"
           position={Position.Bottom}
-          className="!w-3 !h-3 md:!w-3.5 md:!h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
+          className="!w-3.5 !h-3.5 !bg-white !border-2 !border-[#205170] !shadow-sm hover:!scale-125 transition-transform cursor-pointer"
         />
       )}
 
       {/* Photo de profil (ou initiales si aucune photo n'a été ajoutée) */}
       <div className="relative mt-1">
         <div
-          className={`w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden p-0.5 flex-shrink-0 shadow-md ${isTopLevel ? 'bg-white/15 ring-2 ring-white/30' : 'bg-gradient-to-tr from-[#205170] to-[#2d6d94]'
+          className={`w-20 h-20 rounded-full overflow-hidden p-0.5 flex-shrink-0 shadow-md ${isTopLevel ? 'bg-white/15 ring-2 ring-white/30' : 'bg-gradient-to-tr from-[#205170] to-[#2d6d94]'
             }`}
         >
           <div className="w-full h-full rounded-full overflow-hidden bg-slate-50 flex items-center justify-center">
             {data.photoUrl ? (
               <img src={data.photoUrl} alt={fullName} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-lg md:text-xl font-bold text-[#205170] select-none">{initials}</span>
+              <span className="text-xl font-bold text-[#205170] select-none">{initials}</span>
             )}
           </div>
         </div>
       </div>
 
       {/* Informations (lecture seule) */}
-      <div className="w-full flex flex-col gap-1 text-[14px] md:text-[16px] items-center">
+      <div className="w-full flex flex-col gap-1 text-[16px] items-center">
         <div className="text-center px-1 w-full">
           <span className={`font-semibold ${isTopLevel ? 'text-white/90' : 'text-slate-800'}`}>
             {data.firstName}
@@ -137,7 +142,7 @@ export const PersonNode = ({
               }`}
           >
             <span
-              className={`text-center text-[11px] md:text-[12px] font-medium leading-tight whitespace-normal break-words max-w-full ${isTopLevel ? 'text-white/85' : 'text-slate-100'
+              className={`text-center text-[12px] font-medium leading-tight whitespace-normal break-words max-w-full ${isTopLevel ? 'text-white/85' : 'text-slate-100'
                 }`}
             >
               {data.jobTitle}
@@ -150,8 +155,8 @@ export const PersonNode = ({
           sélection (chevauche les poignées de redimensionnement) et
           pendant l'export PDF (élément d'interface, pas d'organigramme) */}
       {hasChildren && !selected && !isExporting && (
-        <div className="absolute -bottom-2.5 right-3 flex items-center gap-1 bg-white border border-[#205170]/20 text-[#205170] text-[12px] md:text-[13px] font-semibold px-1.5 py-0.5 rounded-full shadow-sm">
-          <Users className="w-3 h-3 md:w-3.5 md:h-3.5" />
+        <div className="absolute -bottom-2.5 right-3 flex items-center gap-1 bg-white border border-[#205170]/20 text-[#205170] text-[13px] font-semibold px-1.5 py-0.5 rounded-full shadow-sm">
+          <Users className="w-3.5 h-3.5" />
           {directReportsCount}
         </div>
       )}

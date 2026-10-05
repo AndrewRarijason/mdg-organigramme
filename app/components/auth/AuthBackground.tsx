@@ -15,7 +15,7 @@ export function AuthBackground({
   showHalos?: boolean;
 }) {
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center bg-slate-900 overflow-hidden px-4">
+    <div className="relative min-h-dvh w-full py-6 flex items-center justify-center bg-slate-900 overflow-hidden px-4">
       <div
         className="absolute inset-0 -z-10 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/hierarchie.jpg')" }}
